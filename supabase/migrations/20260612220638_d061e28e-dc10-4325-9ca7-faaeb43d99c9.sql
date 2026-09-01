@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_conversation_timestamp ON public.whatsapp_messages (conversation_id, timestamp ASC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_analysis_results_conversation_completed_recent ON public.whatsapp_analysis_results (conversation_id, analysis_status, analyzed_at DESC, created_at DESC);
