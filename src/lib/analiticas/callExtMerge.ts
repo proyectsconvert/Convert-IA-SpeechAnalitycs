@@ -3,15 +3,15 @@ import { applyCallRule, type ExtRuleRow } from "@/lib/extractions/applyExtractio
 export function buildMergedExtByFileId(
   files: Array<{ id: string; file_name: string; status: string }>,
   ruleRows: ExtRuleRow[],
-  dbMap: Map<string, Record<string, string>>,
-  analysisByFileId: Map<string, Record<string, unknown>>,
-  transcriptionTextByAudio: Record<string, string> | undefined,
+  dbMap: Map<string, Record<string, string>> | Record<string, Record<string, string>> | undefined | null,
+  analysisByFileId: Map<string, Record<string, unknown>> | Record<string, Record<string, unknown>> | undefined | null,
+  transcriptionTextByAudio: Record<string, string> | undefined | null,
 ): Map<string, Record<string, string>> {
   const m = new Map<string, Record<string, string>>();
   for (const f of (files as any[])) {
     const row: Record<string, string> = {};
-    const dbRow = dbMap.get(f.id) || {};
-    const analysis = analysisByFileId.get(f.id);
+    const dbRow = (dbMap instanceof Map ? dbMap.get(f.id) : (dbMap as Record<string, Record<string, string>>)?.[f.id]) || {};
+    const analysis = analysisByFileId instanceof Map ? analysisByFileId.get(f.id) : (analysisByFileId as Record<string, Record<string, unknown>>)?.[f.id];
     const fullText = transcriptionTextByAudio?.[f.id] || "";
     const summary = (analysis?.summary as string) || "";
     const metadata = f.metadata as Record<string, any> | null;

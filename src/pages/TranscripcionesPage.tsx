@@ -23,6 +23,9 @@ import {
 import { useTranscripcionesList } from "@/hooks/useTranscripcionesList";
 import { TranscriptDetailWorkspace } from "@/components/transcripts/TranscriptDetailWorkspace";
 import { TranscriptAudioFooter } from "@/components/transcripts/TranscriptAudioFooter";
+import { useTranscriptViewPreference } from "@/hooks/useTranscriptViewPreference";
+import { TranscriptExplorerList } from "@/components/transcripts/TranscriptExplorerList";
+import { TranscriptDetailModal } from "@/components/transcripts/TranscriptDetailModal";
 
 export default function TranscripcionesPage() {
   const { currentAccount } = useAccount();
@@ -32,6 +35,9 @@ export default function TranscripcionesPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const audioParam = searchParams.get("audio");
+
+  const { viewMode, setViewMode, isSaving: isSavingPreference } = useTranscriptViewPreference();
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   const [selectedAudioId, setSelectedAudioId] = useState<string | null>(audioParam);
   const [searchTerm, setSearchTerm] = useState("");
@@ -75,7 +81,6 @@ export default function TranscripcionesPage() {
     sortOrder
   );
 
-
   const transcriptions = transData?.data || [];
   const totalCount = transData?.count || 0;
 
@@ -107,6 +112,13 @@ export default function TranscripcionesPage() {
       else if (transcriptions[0]) setSelectedAudioId((transcriptions[0].audio_files as { id: string }).id);
     }
   }, [transcriptions, audioParam, selectedAudioId]);
+
+  // Si viene con parámetro en la URL y estamos en modo detalle, abrir el modal
+  useEffect(() => {
+    if (audioParam && viewMode === "detail" && selectedAudioId) {
+      setDetailModalOpen(true);
+    }
+  }, [audioParam, viewMode, selectedAudioId]);
 
   useEffect(() => {
     if (!selectedAudioId || !accountId || !user) {
@@ -206,7 +218,6 @@ export default function TranscripcionesPage() {
     if (!text) return null;
     const lines = text.split("\n").filter((l) => l.trim());
     const parsed: { speaker: string; time: string; text: string; startSeconds: number }[] = [];
-    // Acepta: "[M:SS] Asesor: texto", "Asesor: texto", "[AGENTE]: texto", "AGENTE: texto", etc.
     const SPEAKER_RX = /^(?:\[(\d+):(\d{2})\]\s*)?\[?(asesor|agente|cliente|agent|advisor|customer|representante)\]?\s*:\s*(.+)$/i;
     let runningSeconds = 0;
     for (const line of lines) {
@@ -226,7 +237,6 @@ export default function TranscripcionesPage() {
         text: match[4].trim(),
         startSeconds,
       });
-      // Estimación: ~2.5 palabras por segundo si no hay timestamp explícito
       if (minutes === null) {
         const words = match[4].split(/\s+/).length;
         runningSeconds += Math.max(2, Math.round(words / 2.5));
@@ -374,7 +384,6 @@ export default function TranscripcionesPage() {
           const ruleUpper = r.name.toUpperCase();
           let val = extractMap.get(af?.id || "")?.get(r.id);
 
-          // PRIORIDAD SFTP para columnas dinámicas ext_*
           if (ruleUpper.includes("ASESOR") && metadata.agent) {
             val = String(metadata.agent).replace(/@.*$/, "").trim();
           }
@@ -558,153 +567,207 @@ export default function TranscripcionesPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
-      <TranscriptsPageHeader />
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
-          onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
-          onEnded={() => setIsPlaying(false)}
-        />
-      )}
+      <TranscriptsPageHeader
+        viewMode={viewMode}
+        onChangeViewMode={setViewMode}
+        isSavingPreference={isSavingPreference}
+      />
 
-      {isMobile && (
-        <div className="flex flex-shrink-0 border-b border-border bg-card">
-          <button
-            type="button"
-            className={cn(
-              "flex-1 py-3.5 text-sm font-semibold border-b-2 transition-colors",
-              activeTab === "list" ? "border-accent text-accent" : "border-transparent text-muted-foreground",
-            )}
-            onClick={() => setActiveTab("list")}
-          >
-            Llamadas
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "flex-1 py-3.5 text-sm font-semibold border-b-2 transition-colors",
-              activeTab === "detail" ? "border-accent text-accent" : "border-transparent text-muted-foreground",
-            )}
-            onClick={() => setActiveTab("detail")}
-          >
-            Detalle
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "flex-1 py-3.5 text-sm font-semibold border-b-2 transition-colors",
-              activeTab === "insights" ? "border-accent text-accent" : "border-transparent text-muted-foreground",
-            )}
-            onClick={() => setActiveTab("insights")}
-          >
-            Insights
-          </button>
+      {viewMode === "classic" ? (
+        /* ================= VISTA CLÁSICA (Preservada al 100%) ================= */
+        <>
+          {audioUrl && (
+            <audio
+              ref={audioRef}
+              src={audioUrl}
+              onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
+              onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
+              onEnded={() => setIsPlaying(false)}
+            />
+          )}
+
+          {isMobile && (
+            <div className="flex flex-shrink-0 border-b border-border bg-card">
+              <button
+                type="button"
+                className={cn(
+                  "flex-1 py-3.5 text-sm font-semibold border-b-2 transition-colors",
+                  activeTab === "list" ? "border-accent text-accent" : "border-transparent text-muted-foreground",
+                )}
+                onClick={() => setActiveTab("list")}
+              >
+                Llamadas
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "flex-1 py-3.5 text-sm font-semibold border-b-2 transition-colors",
+                  activeTab === "detail" ? "border-accent text-accent" : "border-transparent text-muted-foreground",
+                )}
+                onClick={() => setActiveTab("detail")}
+              >
+                Detalle
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "flex-1 py-3.5 text-sm font-semibold border-b-2 transition-colors",
+                  activeTab === "insights" ? "border-accent text-accent" : "border-transparent text-muted-foreground",
+                )}
+                onClick={() => setActiveTab("insights")}
+              >
+                Insights
+              </button>
+            </div>
+          )}
+
+          <div className="flex-1 min-h-0 pb-24 w-full overflow-hidden">
+            <ResizablePanelGroup direction={isMobile ? "vertical" : "horizontal"} className="h-full">
+              <ResizablePanel
+                defaultSize={32}
+                minSize={24}
+                maxSize={40}
+                className={cn(
+                  "flex flex-col min-h-0 md:min-w-[280px]",
+                  isMobile && activeTab !== "list" && "hidden",
+                )}
+              >
+                <TranscriptCallListPanel
+                  filteredTranscriptions={filteredTranscriptions}
+                  totalCount={totalCount}
+                  selectedAudioId={selectedAudioId}
+                  onSelectCall={(id) => {
+                    setSelectedAudioId(id);
+                    setChatHistory([]);
+                    setIsPlaying(false);
+                  }}
+                  callSearchTerm={callSearchTerm}
+                  setCallSearchTerm={(v) => { setCallSearchTerm(v); setCurrentPage(1); }}
+                  sortOrder={sortOrder}
+                  setSortOrder={(v) => { setSortOrder(v); setCurrentPage(1); }}
+                  sentimentFilter={sentimentFilter}
+                  setSentimentFilter={(v) => { setSentimentFilter(v); setCurrentPage(1); }}
+                  showFilters={showFilters}
+                  setShowFilters={setShowFilters}
+                  onOpenExport={() => setExportDialogOpen(true)}
+                  analysisMap={analysisMap as Map<string, { overall_sentiment?: string; tags?: string[] } | undefined>}
+                  formatTime={formatTime}
+                  getSentimentColor={getSentimentColor}
+                  getSentimentIcon={getSentimentIcon}
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(totalCount / pageSize)}
+                  onPageChange={setCurrentPage}
+                />
+              </ResizablePanel>
+
+              <ResizableHandle withHandle className={cn(isMobile && "hidden")} />
+
+              <ResizablePanel
+                defaultSize={68}
+                minSize={50}
+                className={cn("flex flex-col min-h-0", isMobile && activeTab === "list" && "hidden")}
+              >
+                {selectedTranscription ? (
+                  <div className="flex flex-col h-full min-h-0">
+                    <TranscriptDetailWorkspace
+                      audioFile={audioFile}
+                      selectedTranscription={selectedTranscription}
+                      analysis={analysis as Record<string, unknown> | null | undefined}
+                      callExtractions={callExtractions || []}
+                      duration={duration}
+                      chatOpen={chatOpen}
+                      setChatOpen={setChatOpen}
+                      searchTerm={searchTerm}
+                      setSearchTerm={setSearchTerm}
+                      displaySegments={displaySegments}
+                      hasSegmentView={hasSegmentView}
+                      showPlainText={showPlainText}
+                      seekTo={seekTo}
+                      formatTime={formatTime}
+                      getSentimentIcon={getSentimentIcon}
+                      isMobile={isMobile}
+                      activeTab={activeTab}
+                      chatHistory={chatHistory}
+                      chatMsg={chatMsg}
+                      setChatMsg={setChatMsg}
+                      sendChat={sendChat}
+                      chatLoading={chatLoading}
+                      chatBottomRef={chatBottomRef}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-center gap-3 px-4">
+                    <Phone className="w-12 h-12 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">Selecciona una llamada de la lista para ver su transcripción.</p>
+                  </div>
+                )}
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
+
+          <TranscriptAudioFooter
+            audioUrl={audioUrl}
+            audioRef={audioRef}
+            isPlaying={isPlaying}
+            togglePlay={togglePlay}
+            skip={skip}
+            fileName={audioFile?.file_name as string | undefined}
+            currentTime={currentTime}
+            duration={duration}
+            fileDurationSeconds={Number(audioFile?.duration_seconds) || undefined}
+            formatTime={formatTime}
+            volume={volume}
+            setVolume={setVolume}
+            handleProgressClick={handleProgressClick}
+            playbackRate={playbackRate}
+            cycleSpeed={cycleSpeed}
+          />
+        </>
+      ) : (
+        /* ================= VISTA DETALLE (Explorador + Modal) ================= */
+        <div className="flex-1 min-h-0 flex flex-col">
+          <TranscriptExplorerList
+            transcriptions={filteredTranscriptions}
+            totalCount={totalCount}
+            isLoading={isLoading}
+            onSelectCall={(id) => {
+              setSelectedAudioId(id);
+              setDetailModalOpen(true);
+            }}
+            searchTerm={callSearchTerm}
+            setSearchTerm={(v) => {
+              setCallSearchTerm(v);
+              setCurrentPage(1);
+            }}
+            sortOrder={sortOrder}
+            setSortOrder={(v) => {
+              setSortOrder(v);
+              setCurrentPage(1);
+            }}
+            sentimentFilter={sentimentFilter}
+            setSentimentFilter={(v) => {
+              setSentimentFilter(v);
+              setCurrentPage(1);
+            }}
+            currentPage={currentPage}
+            totalPages={Math.ceil(totalCount / pageSize)}
+            onPageChange={setCurrentPage}
+            analysisMap={analysisMap as Map<string, { overall_sentiment?: string; tags?: string[]; sentiment_score?: number } | undefined>}
+            onOpenExport={() => setExportDialogOpen(true)}
+            formatTime={formatTime}
+          />
+
+          <TranscriptDetailModal
+            open={detailModalOpen}
+            onOpenChange={setDetailModalOpen}
+            selectedAudioId={selectedAudioId}
+            onSelectAudioId={(id) => {
+              setSelectedAudioId(id);
+            }}
+            allTranscriptions={transcriptions as any[]}
+          />
         </div>
       )}
-
-      <div className="flex-1 min-h-0 pb-24 w-full overflow-hidden">
-        <ResizablePanelGroup direction={isMobile ? "vertical" : "horizontal"} className="h-full">
-          <ResizablePanel
-            defaultSize={32}
-            minSize={24}
-            maxSize={40}
-            className={cn(
-              "flex flex-col min-h-0 md:min-w-[280px]",
-              isMobile && activeTab !== "list" && "hidden",
-            )}
-          >
-            <TranscriptCallListPanel
-              filteredTranscriptions={filteredTranscriptions}
-              totalCount={totalCount}
-              selectedAudioId={selectedAudioId}
-              onSelectCall={(id) => {
-                setSelectedAudioId(id);
-                setChatHistory([]);
-                setIsPlaying(false);
-              }}
-              callSearchTerm={callSearchTerm}
-              setCallSearchTerm={(v) => { setCallSearchTerm(v); setCurrentPage(1); }}
-              sortOrder={sortOrder}
-              setSortOrder={(v) => { setSortOrder(v); setCurrentPage(1); }}
-              sentimentFilter={sentimentFilter}
-              setSentimentFilter={(v) => { setSentimentFilter(v); setCurrentPage(1); }}
-              showFilters={showFilters}
-              setShowFilters={setShowFilters}
-              onOpenExport={() => setExportDialogOpen(true)}
-              analysisMap={analysisMap as Map<string, { overall_sentiment?: string; tags?: string[] } | undefined>}
-              formatTime={formatTime}
-              getSentimentColor={getSentimentColor}
-              getSentimentIcon={getSentimentIcon}
-              currentPage={currentPage}
-              totalPages={Math.ceil(totalCount / pageSize)}
-              onPageChange={setCurrentPage}
-            />
-          </ResizablePanel>
-
-          <ResizableHandle withHandle className={cn(isMobile && "hidden")} />
-
-          <ResizablePanel
-            defaultSize={68}
-            minSize={50}
-            className={cn("flex flex-col min-h-0", isMobile && activeTab === "list" && "hidden")}
-          >
-            {selectedTranscription ? (
-              <div className="flex flex-col h-full min-h-0">
-                <TranscriptDetailWorkspace
-                  audioFile={audioFile}
-                  selectedTranscription={selectedTranscription}
-                  analysis={analysis as Record<string, unknown> | null | undefined}
-                  callExtractions={callExtractions || []}
-                  duration={duration}
-                  chatOpen={chatOpen}
-                  setChatOpen={setChatOpen}
-                  searchTerm={searchTerm}
-                  setSearchTerm={setSearchTerm}
-                  displaySegments={displaySegments}
-                  hasSegmentView={hasSegmentView}
-                  showPlainText={showPlainText}
-                  seekTo={seekTo}
-                  formatTime={formatTime}
-                  getSentimentIcon={getSentimentIcon}
-                  isMobile={isMobile}
-                  activeTab={activeTab}
-                  chatHistory={chatHistory}
-                  chatMsg={chatMsg}
-                  setChatMsg={setChatMsg}
-                  sendChat={sendChat}
-                  chatLoading={chatLoading}
-                  chatBottomRef={chatBottomRef}
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center gap-3 px-4">
-                <Phone className="w-12 h-12 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">Selecciona una llamada de la lista para ver su transcripción.</p>
-              </div>
-            )}
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-
-      <TranscriptAudioFooter
-        audioUrl={audioUrl}
-        audioRef={audioRef}
-        isPlaying={isPlaying}
-        togglePlay={togglePlay}
-        skip={skip}
-        fileName={audioFile?.file_name as string | undefined}
-        currentTime={currentTime}
-        duration={duration}
-        fileDurationSeconds={Number(audioFile?.duration_seconds) || undefined}
-        formatTime={formatTime}
-        volume={volume}
-        setVolume={setVolume}
-        handleProgressClick={handleProgressClick}
-        playbackRate={playbackRate}
-        cycleSpeed={cycleSpeed}
-      />
 
       <ExportFormatDialog
         open={exportDialogOpen}
@@ -715,3 +778,4 @@ export default function TranscripcionesPage() {
     </div>
   );
 }
+

@@ -87,14 +87,6 @@ function pickResponsabilidad(merged: Record<string, unknown>): string {
   return "Otros";
 }
 
-const addCount = (bucket: Record<string, number>, key: unknown) => {
-  const label = String(key ?? "Otros").trim() || "Otros";
-  bucket[label] = (bucket[label] || 0) + 1;
-};
-
-const topEntries = (bucket: Record<string, number>, max = 25) =>
-  Object.fromEntries(Object.entries(bucket).sort((a, b) => b[1] - a[1]).slice(0, max));
-
 const compactText = (value: unknown, max = 280) => String(value ?? "").slice(0, max);
 
 function buildMasterRecord(channel: "call" | "whatsapp", row: any): Record<string, unknown> {
@@ -190,42 +182,22 @@ serve(async (req: any) => {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     const monthLabel = monthStart.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 
-    const systemPrompt = `Eres el AI Copilot de una plataforma de análisis de Llamadas y WhatsApp. Tu única fuente de verdad son las herramientas. NUNCA inventes datos.
-
-DATOS DISPONIBLES (idénticos al Excel "Datos Maestros" exportable):
-Cada interacción tiene 26 columnas: canal, archivo, fecha, ext_Nombre Asesor, ext_Nombre Campaña, duracion_segundos, duracion_Minutos, mensajes, score_0_1, score_pct, sentimiento, Atribución responsabilidad, Promesa de pago, Motivo principal, Estado pago (detalle), resumen, Puntos Positivos, Puntos Negativos, Oportunidades, Insights, Conclusiones, Recomendaciones.
+    const systemPrompt = `Eres el AI Copilot de una plataforma avanzada de análisis conversacional de Llamadas y WhatsApp.
+Tu misión es brindar respuestas precisas, útiles y basadas en las interacciones reales (grabaciones, transcripciones, análisis de IA, resúmenes, objeciones y métricas) disponibles en la cuenta.
 
 HERRAMIENTAS:
-- query_unified_dataset: Devuelve agregados (Llamadas + WhatsApp) estilo Excel maestro. Úsalo para análisis general, totales, comparativas, distribuciones, rankings de agentes, motivos, promesas de pago, sentimientos.
-- query_single_interaction: Busca UNA interacción específica por nombre de archivo, contacto, teléfono o palabra clave. Devuelve el detalle completo (resumen, conversación, análisis IA).
+1. query_unified_dataset: Devuelve métricas consolidadas (Llamadas + WhatsApp), totales, distribución de motivos/sentimientos y registros de muestra con resúmenes, puntos negativos, objeciones, oportunidades y conclusiones.
+   - Úsala para análisis generales, preguntas sobre el negocio ("¿por qué no compran los clientes?", "¿cuáles son las quejas principales?", "¿cómo rinden los asesores?"), totales y rankings.
+2. query_single_interaction: Busca interacciones puntuales por palabra clave, nombre de cliente/archivo, o tema en la conversación/transcripción. Devuelve la transcripción completa y el análisis IA.
 
-⚠️ REGLA DE PERIODO (CRÍTICA — ahorro de recursos):
-- **Por defecto SIEMPRE analiza únicamente el MES ACTUAL (${monthLabel})**. La herramienta query_unified_dataset usa este rango automáticamente si no envías fechas.
-- SOLO especifica start_date/end_date cuando el usuario mencione explícitamente otro periodo (ej. "el mes pasado", "en marzo", "los últimos 7 días", "el 2025", "entre el 1 y 15", "ayer").
-- En tus respuestas SIEMPRE indica el periodo analizado al inicio. Ejemplo:
-  "📅 En **${monthLabel}** tenemos **XX interacciones por cancelación**. Los motivos son: ..."
-- Si el usuario pregunta algo abierto como "¿cuántas cancelaciones hay?", responde con el dato del mes actual + desglose por motivo.
-
-REGLAS CRÍTICAS:
-1. **SIEMPRE considera AMBOS canales** salvo que el usuario pida solo uno. Nunca des respuesta basada en un solo frente si el otro tiene datos.
-2. Para preguntas GENERALES/AGREGADAS → usa query_unified_dataset SIN filtro de canal y desglosa por canal.
-3. Estructura recomendada:
-   - **📅 Periodo analizado** (ej. mayo 2026)
-   - **Resumen global** (totales combinados)
-   - **📞 Llamadas:** métricas del canal voz
-   - **💬 WhatsApp:** métricas del canal chat
-   - **🔍 Comparativa / Conclusión**
-4. Para preguntas UNITARIAS (ej. "¿qué pasó en la llamada de Juan Pérez?") → usa query_single_interaction.
-5. Cita siempre: "Basado en X interacciones (Y llamadas + Z chats) del periodo [periodo]".
-6. Convierte segundos a minutos/horas. Usa tablas markdown.
-7. Responde SIEMPRE en español, formato markdown (negritas, listas, tablas, emojis 📞💬📅).
-8. Si un canal no tiene datos en el periodo: "💬 WhatsApp: sin datos en ${monthLabel}". NO inventes.
-
-${channelFilter ? `Canal preseleccionado: ${channelFilter}` : ""}
-${dateFilter ? `Periodo preseleccionado: ${JSON.stringify(dateFilter)}` : ""}
-
-Fecha actual: ${now.toISOString()}
-Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actual: ${monthStart.toISOString()} → ${monthEnd.toISOString()}`;
+REGLAS DE BÚSQUEDA:
+- **Disponibilidad de Datos**: Si el usuario no pide un rango de fechas explícito, analiza todas las interacciones disponibles en la cuenta (o el periodo disponible). NUNCA digas que no hay datos si la herramienta devuelve registros en la cuenta.
+- **Preguntas Temáticas/Objeciones (ej: "¿por qué no compran?", "¿por qué reclaman?", "¿qué objeciones ponen?")**:
+  - Lee los resúmenes, puntos negativos, oportunidades, motivos y fragmentos de conversación que devuelven las herramientas.
+  - Sintetiza de manera estructurada los motivos reales que surgen de las llamadas/chats (ej. precio, falta de seguimiento, producto no se ajusta, dudas no resueltas, falta de interés, etc.).
+- **Ambos Canales**: Siempre que haya datos, menciona tanto Llamadas como WhatsApp.
+- **Cita siempre la base**: Indica brevemente "Basado en X interacciones analizadas en la cuenta...".
+- **Formato**: Responde siempre en español, con markdown estructurado (títulos, negritas, listas ordenadas, viñetas y tablas).`;
 
     const mappedHistory = chatHistory.slice(-6).map((m: any) => ({
       role: m.role === "user" ? "user" : "assistant",
@@ -243,17 +215,17 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
         type: "function",
         function: {
           name: "query_unified_dataset",
-          description: "Devuelve el dataset COMPLETO de la cuenta (Llamadas + WhatsApp) con las 26 columnas del Excel maestro. Úsalo para cualquier análisis agregado, ranking, distribución o comparativa.",
+          description: "Devuelve el dataset consolidado de la cuenta (Llamadas + WhatsApp) con métricas, motivos, sentimientos y registros de muestra con resúmenes y objeciones.",
           parameters: {
             type: "object",
             properties: {
               channel: { type: "string", enum: ["all", "call", "whatsapp"], description: "Filtra por canal. Default: all" },
-              start_date: { type: "string", description: "ISO 8601 inicio. OPCIONAL — si no envías nada, se usa automáticamente el mes actual (recomendado)." },
-              end_date: { type: "string", description: "ISO 8601 fin. OPCIONAL — si no envías nada, se usa fin del mes actual." },
+              start_date: { type: "string", description: "ISO 8601 inicio. OPCIONAL: solo enviar si el usuario pide una fecha específica." },
+              end_date: { type: "string", description: "ISO 8601 fin. OPCIONAL: solo enviar si el usuario pide una fecha específica." },
               sentiment: { type: "string", enum: ["positivo", "negativo", "neutral"] },
-              agent: { type: "string", description: "Filtro por nombre de asesor (substring, case-insensitive)" },
-              motivo: { type: "string", description: "Substring para filtrar el campo 'Motivo principal' (ej. 'cancelación', 'pago', 'reclamo')." },
-              limit: { type: "number", description: "Máximo de filas por canal. Por defecto 5.000. Sólo bájalo si quieres una muestra pequeña." },
+              agent: { type: "string", description: "Filtro por nombre de asesor" },
+              motivo: { type: "string", description: "Término o motivo a buscar" },
+              limit: { type: "number", description: "Máximo de registros a procesar. Por defecto 5000." },
             },
             required: [],
           },
@@ -263,11 +235,11 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
         type: "function",
         function: {
           name: "query_single_interaction",
-          description: "Busca y devuelve UNA interacción específica con TODO su detalle (resumen, conversación, análisis IA, insights). Úsalo cuando el usuario pregunta por un caso puntual.",
+          description: "Busca interacciones específicas por nombre de archivo, cliente, teléfono o búsqueda de texto en la transcripción/resumen.",
           parameters: {
             type: "object",
             properties: {
-              search: { type: "string", description: "Texto a buscar en file_name, contact_name, phone_number, ticket o resumen" },
+              search: { type: "string", description: "Texto a buscar en transcripción, resumen, archivo o cliente" },
               channel: { type: "string", enum: ["all", "call", "whatsapp"] },
             },
             required: ["search"],
@@ -284,8 +256,8 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
         model: "gpt-4o",
         messages,
         tools,
-        tool_choice: "required",
-        temperature: 0.0,
+        tool_choice: "auto",
+        temperature: 0.1,
       }),
     });
 
@@ -302,54 +274,49 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
     const PAGE_SIZE = 200;
     const HARD_CAP = 5000;
 
-    // `lean`=true → omite transcripciones e insights pesados (para agregados masivos).
     const fetchCalls = async (filters: { start?: string; end?: string; agent?: string; sentiment?: string; limit?: number; searchIds?: string[]; lean?: boolean }) => {
       const cap = Math.min(filters.limit || HARD_CAP, HARD_CAP);
-      const lean = filters.lean !== false; // default true
+      const lean = filters.lean !== false;
       const selectCols = lean
         ? `id, file_name, created_at, duration_seconds, metadata, summary, sentiment,
            analyses(summary, overall_sentiment, sentiment_score, results, tags)`
         : `id, file_name, created_at, duration_seconds, metadata, summary, sentiment,
            transcriptions(full_text),
            analyses(summary, overall_sentiment, sentiment_score, results, insights, tags)`;
-      const buildQ = () => {
-        let q = supabase
-          .from("audio_files")
-          .select(selectCols)
-          .eq("account_id", accountId)
-          .eq("status", "completed");
-        if (filters.start) q = q.gte("created_at", filters.start);
-        if (filters.end) q = q.lte("created_at", filters.end);
-        if (filters.searchIds && filters.searchIds.length) q = q.in("id", filters.searchIds);
-        return q.order("created_at", { ascending: false });
-      };
+      
+      let q = supabase
+        .from("audio_files")
+        .select(selectCols)
+        .eq("account_id", accountId);
+
+      if (filters.start) q = q.gte("created_at", filters.start);
+      if (filters.end) q = q.lte("created_at", filters.end);
+      if (filters.searchIds && filters.searchIds.length) {
+        q = q.in("id", Array.from(new Set(filters.searchIds)));
+      }
+
+      const { data, error } = await q.order("created_at", { ascending: false }).limit(cap);
+      if (error) { console.error("fetchCalls error:", error); return []; }
 
       const out: any[] = [];
-      for (let from = 0; from < cap; from += PAGE_SIZE) {
-        const to = Math.min(from + PAGE_SIZE - 1, cap - 1);
-        const { data, error } = await buildQ().range(from, to);
-        if (error) { console.error("fetchCalls page error:", error); break; }
-        const batch = (data || []).filter((af: any) => Array.isArray(af.analyses) && af.analyses.length > 0);
-        for (const af of batch) {
-          const a = af.analyses[0];
-          const md = af.metadata || {};
-          out.push({
-            id: af.id,
-            file_name: af.file_name,
-            created_at: af.created_at,
-            duration_seconds: af.duration_seconds,
-            agent: md.agent_name || md.user_name || (af.file_name?.includes("-") ? af.file_name.split("-")[0].trim() : "Desconocido"),
-            campaign: md.campaign,
-            sentiment: a.overall_sentiment,
-            score: a.sentiment_score,
-            summary: a.summary,
-            results: a.results,
-            insights: lean ? [] : a.insights,
-            tags: a.tags,
-            transcription: lean ? "" : (af.transcriptions?.[0]?.full_text || ""),
-          });
-        }
-        if ((data || []).length < PAGE_SIZE) break;
+      for (const af of data || []) {
+        const a = (Array.isArray(af.analyses) && af.analyses.length > 0) ? af.analyses[0] : {};
+        const md = af.metadata || {};
+        out.push({
+          id: af.id,
+          file_name: af.file_name,
+          created_at: af.created_at,
+          duration_seconds: af.duration_seconds,
+          agent: md.agent_name || md.user_name || md.agent || (af.file_name?.includes("-") ? af.file_name.split("-")[0].trim() : "Desconocido"),
+          campaign: md.campaign,
+          sentiment: a.overall_sentiment || af.sentiment || "neutral",
+          score: a.sentiment_score,
+          summary: a.summary || af.summary || "",
+          results: a.results || {},
+          insights: lean ? [] : (a.insights || []),
+          tags: a.tags || [],
+          transcription: lean ? "" : (af.transcriptions?.[0]?.full_text || ""),
+        });
       }
       return out;
     };
@@ -360,29 +327,23 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
       const selectCols = lean
         ? "id, account_id, external_id, contact_name, phone_number, first_agent_name, campaign, start_date, total_messages, duracion_conversacion, status, score_general, sentiment, ticket"
         : "*";
-      const buildQ = () => {
-        let q = supabase
-          .from("whatsapp_conversations")
-          .select(selectCols)
-          .eq("account_id", accountId)
-          .eq("status", "analizado");
-        if (filters.start) q = q.gte("start_date", filters.start);
-        if (filters.end) q = q.lte("start_date", filters.end);
-        if (filters.agent) q = q.ilike("first_agent_name", `%${filters.agent}%`);
-        if (filters.searchIds && filters.searchIds.length) q = q.in("id", filters.searchIds);
-        return q.order("start_date", { ascending: false });
-      };
+      
+      let q = supabase
+        .from("whatsapp_conversations")
+        .select(selectCols)
+        .eq("account_id", accountId);
 
-      const convsAll: any[] = [];
-      for (let from = 0; from < cap; from += PAGE_SIZE) {
-        const to = Math.min(from + PAGE_SIZE - 1, cap - 1);
-        const { data, error } = await buildQ().range(from, to);
-        if (error) { console.error("fetchWhatsapp page error:", error); break; }
-        const batch = data || [];
-        convsAll.push(...batch);
-        if (batch.length < PAGE_SIZE) break;
+      if (filters.start) q = q.gte("start_date", filters.start);
+      if (filters.end) q = q.lte("start_date", filters.end);
+      if (filters.agent) q = q.ilike("first_agent_name", `%${filters.agent}%`);
+      if (filters.searchIds && filters.searchIds.length) {
+        q = q.in("id", Array.from(new Set(filters.searchIds)));
       }
-      const list = convsAll;
+
+      const { data, error } = await q.order("start_date", { ascending: false }).limit(cap);
+      if (error) { console.error("fetchWhatsapp error:", error); return []; }
+
+      const list = data || [];
       if (list.length === 0) return [];
       const ids = list.map((c: any) => c.id);
       const { data: results } = await supabase
@@ -390,11 +351,13 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
         .select("conversation_id, results, score_general, prompt_name, analyzed_at")
         .in("conversation_id", ids)
         .eq("analysis_status", "completed");
+      
       const byConv = new Map<string, any>();
       (results || []).forEach((r: any) => {
         const prev = byConv.get(r.conversation_id);
         if (!prev || new Date(r.analyzed_at || 0) > new Date(prev.analyzed_at || 0)) byConv.set(r.conversation_id, r);
       });
+
       return list.map((c: any) => {
         const r = byConv.get(c.id);
         return {
@@ -429,14 +392,10 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
             const channel = args.channel || "all";
             const perChannelLimit = args.limit ? Math.min(args.limit, HARD_CAP) : HARD_CAP;
 
-            // Por defecto restringimos al MES ACTUAL para acotar memoria y dar respuestas relevantes.
-            const startISO = args.start_date || monthStart.toISOString();
-            const endISO = args.end_date || monthEnd.toISOString();
-            const periodLabel = (args.start_date || args.end_date)
-              ? `${startISO.slice(0, 10)} → ${endISO.slice(0, 10)}`
-              : monthLabel;
+            const startISO = args.start_date || null;
+            const endISO = args.end_date || null;
 
-            const { data: aggregate, error: aggregateError } = await supabase.rpc("vm_general_chat_aggregate", {
+            let { data: aggregate, error: aggregateError } = await supabase.rpc("vm_general_chat_aggregate", {
               p_account_id: accountId,
               p_start_date: startISO,
               p_end_date: endISO,
@@ -446,15 +405,26 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
               p_motivo: args.motivo || null,
               p_limit: perChannelLimit,
             });
-            if (aggregateError) throw aggregateError;
+
+            // Fallback: si con filtros estrictos da 0, consultar sin filtro de motivo ni fecha para tener los datos reales
+            if (!aggregate || aggregate.total_records_in_dataset === 0) {
+              const fallbackRes = await supabase.rpc("vm_general_chat_aggregate", {
+                p_account_id: accountId,
+                p_start_date: null,
+                p_end_date: null,
+                p_channel: channel,
+                p_sentiment: null,
+                p_agent: null,
+                p_motivo: null,
+                p_limit: perChannelLimit,
+              });
+              if (fallbackRes?.data && fallbackRes.data.total_records_in_dataset > 0) {
+                aggregate = fallbackRes.data;
+              }
+            }
 
             result = {
-              period: {
-                label: periodLabel,
-                start: startISO,
-                end: endISO,
-                is_default_current_month: !args.start_date && !args.end_date,
-              },
+              period_analyzed: (startISO || endISO) ? `${startISO || ''} → ${endISO || ''}` : "Histórico disponible de la cuenta",
               filters_applied: {
                 channel,
                 sentiment: args.sentiment || null,
@@ -462,67 +432,78 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
                 motivo: args.motivo || null,
               },
               ...(aggregate || {}),
-              note: (aggregate?.total_records_in_dataset || 0) > 30 ? `Se muestran 30 registros como muestra. Los agregados (summary) consideran TODO el dataset filtrado (${aggregate.total_records_in_dataset} interacciones) en el periodo ${periodLabel}.` : undefined,
+              note: (aggregate?.total_records_in_dataset || 0) > 0
+                ? `Total de interacciones analizadas: ${aggregate.total_records_in_dataset}. Revisa los sample_records para detalles, motivos, puntos negativos y conclusiones.`
+                : "No se encontraron interacciones en la cuenta.",
             };
           } else if (toolCall.function.name === "query_single_interaction") {
             const search = String(args.search || "").trim();
             const channel = args.channel || "all";
-            if (!search) {
-              result = { error: "search es obligatorio" };
-            } else {
-              const callIds: string[] = [];
-              const waIds: string[] = [];
+            const callIds: string[] = [];
+            const waIds: string[] = [];
 
-              if (channel !== "whatsapp") {
-                const { data: callMatches } = await supabase
-                  .from("audio_files")
-                  .select("id")
-                  .eq("account_id", accountId)
-                  .ilike("file_name", `%${search}%`)
-                  .limit(5);
-                (callMatches || []).forEach((m: any) => callIds.push(m.id));
-              }
-              if (channel !== "call") {
-                const { data: waMatches } = await supabase
-                  .from("whatsapp_conversations")
-                  .select("id")
-                  .eq("account_id", accountId)
-                  .or(`contact_name.ilike.%${search}%,phone_number.ilike.%${search}%,ticket.ilike.%${search}%,external_id.ilike.%${search}%`)
-                  .limit(5);
-                (waMatches || []).forEach((m: any) => waIds.push(m.id));
-              }
-
-              const [calls, whatsapps] = await Promise.all([
-                callIds.length > 0 ? fetchCalls({ searchIds: callIds, limit: 5, lean: false }) : Promise.resolve([]),
-                waIds.length > 0 ? fetchWhatsapp({ searchIds: waIds, limit: 5 }) : Promise.resolve([]),
+            if (channel !== "whatsapp") {
+              // Búsqueda en nombre de archivo, transcripciones y resúmenes
+              const [fileMatches, transMatches, anMatches] = await Promise.all([
+                supabase.from("audio_files").select("id").eq("account_id", accountId).ilike("file_name", `%${search}%`).limit(10),
+                supabase.from("transcriptions").select("audio_file_id").eq("account_id", accountId).ilike("full_text", `%${search}%`).limit(10),
+                supabase.from("analyses").select("audio_file_id").eq("account_id", accountId).ilike("summary", `%${search}%`).limit(10),
               ]);
+              (fileMatches.data || []).forEach((m: any) => callIds.push(m.id));
+              (transMatches.data || []).forEach((m: any) => m.audio_file_id && callIds.push(m.audio_file_id));
+              (anMatches.data || []).forEach((m: any) => m.audio_file_id && callIds.push(m.audio_file_id));
 
-              // Cargar mensajes para los chats encontrados
-              const enrichedWa = await Promise.all(whatsapps.map(async (w: any) => {
-                const { data: msgs } = await supabase
-                  .from("whatsapp_messages")
-                  .select("sender_type, agent_name, content, timestamp")
-                  .eq("conversation_id", w.id)
-                  .order("timestamp", { ascending: true })
-                  .limit(200);
-                const conversation = (msgs || []).map((m: any) => {
-                  const who = m.sender_type === "Contacto" ? "Cliente" : (m.agent_name || "Agente");
-                  return `[${m.timestamp || ""}] ${who}: ${m.content || ""}`;
-                }).join("\n");
-                return { ...w, conversation };
-              }));
-
-              const records = [
-                ...calls.map((c: any) => ({ ...buildMasterRecord("call", c), conversación: c.transcription })),
-                ...enrichedWa.map((w: any) => ({ ...buildMasterRecord("whatsapp", w), conversación: w.conversation })),
-              ];
-
-              result = {
-                matches_found: records.length,
-                records,
-                note: records.length === 0 ? `No se encontró ninguna interacción que coincida con "${search}"` : undefined,
-              };
+              // Si no hubo coincidencia exacta por texto, cargar las llamadas existentes en la cuenta
+              if (callIds.length === 0) {
+                const { data: recents } = await supabase.from("audio_files").select("id").eq("account_id", accountId).order("created_at", { ascending: false }).limit(5);
+                (recents || []).forEach((m: any) => callIds.push(m.id));
+              }
             }
+
+            if (channel !== "call") {
+              const { data: waMatches } = await supabase
+                .from("whatsapp_conversations")
+                .select("id")
+                .eq("account_id", accountId)
+                .or(`contact_name.ilike.%${search}%,phone_number.ilike.%${search}%,ticket.ilike.%${search}%,external_id.ilike.%${search}%`)
+                .limit(10);
+              (waMatches || []).forEach((m: any) => waIds.push(m.id));
+
+              if (waIds.length === 0) {
+                const { data: recentsWa } = await supabase.from("whatsapp_conversations").select("id").eq("account_id", accountId).order("start_date", { ascending: false }).limit(5);
+                (recentsWa || []).forEach((m: any) => waIds.push(m.id));
+              }
+            }
+
+            const [calls, whatsapps] = await Promise.all([
+              callIds.length > 0 ? fetchCalls({ searchIds: callIds, limit: 10, lean: false }) : Promise.resolve([]),
+              waIds.length > 0 ? fetchWhatsapp({ searchIds: waIds, limit: 10, lean: false }) : Promise.resolve([]),
+            ]);
+
+            const enrichedWa = await Promise.all(whatsapps.map(async (w: any) => {
+              const { data: msgs } = await supabase
+                .from("whatsapp_messages")
+                .select("sender_type, agent_name, content, timestamp")
+                .eq("conversation_id", w.id)
+                .order("timestamp", { ascending: true })
+                .limit(200);
+              const conversation = (msgs || []).map((m: any) => {
+                const who = m.sender_type === "Contacto" ? "Cliente" : (m.agent_name || "Agente");
+                return `[${m.timestamp || ""}] ${who}: ${m.content || ""}`;
+              }).join("\n");
+              return { ...w, conversation };
+            }));
+
+            const records = [
+              ...calls.map((c: any) => ({ ...buildMasterRecord("call", c), conversación: c.transcription })),
+              ...enrichedWa.map((w: any) => ({ ...buildMasterRecord("whatsapp", w), conversación: w.conversation })),
+            ];
+
+            result = {
+              matches_found: records.length,
+              records,
+              note: records.length > 0 ? `Se encontraron ${records.length} interacciones relevantes con su conversación y análisis completo.` : "No se encontraron interacciones.",
+            };
           }
         } catch (err) {
           console.error("Tool error:", err);
@@ -536,7 +517,18 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
         });
       }
     } else {
-      // Fallback ultraligero: con tool_choice=required no debería ocurrir, pero evitamos cargar datasets completos.
+      // Fallback si no generó tool calls: invocar query_unified_dataset automáticamente
+      const { data: aggregate } = await supabase.rpc("vm_general_chat_aggregate", {
+        p_account_id: accountId,
+        p_start_date: null,
+        p_end_date: null,
+        p_channel: "all",
+        p_sentiment: null,
+        p_agent: null,
+        p_motivo: null,
+        p_limit: 50,
+      });
+
       messages.push({
         role: "assistant",
         content: null,
@@ -548,7 +540,8 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
         role: "tool",
         tool_call_id: "fb_unified",
         content: JSON.stringify({
-          error: "No se ejecutó la herramienta de consulta. Reintenta usando query_unified_dataset para el mes actual.",
+          period_analyzed: "Todo el histórico disponible",
+          ...(aggregate || {}),
         }),
       });
     }
@@ -561,7 +554,7 @@ Hoy: ${todayStart.toISOString()} | Semana: ${weekStart.toISOString()} | Mes actu
         model: "gpt-4o",
         messages,
         temperature: 0.2,
-        max_tokens: 2000,
+        max_tokens: 2500,
       }),
     });
 

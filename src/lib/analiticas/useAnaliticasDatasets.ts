@@ -46,7 +46,7 @@ export function useAnaliticasDatasets(accountId: string | undefined, options?: {
   const { data: extractionBundle, isLoading: loadingExt } = useQuery({
     queryKey: ["analiticas-call-extractions", accountId, fileIdsSig],
     queryFn: async () => {
-      if (!accountId) return { ruleRows: [] as ExtRuleRow[], dbMap: new Map<string, Record<string, string>>() };
+      if (!accountId) return { ruleRows: [] as ExtRuleRow[], dbMap: {} as Record<string, Record<string, string>> };
       const { data: rulesRaw } = await supabase
         .from("extraction_rules")
         .select("id, name, source, extraction_type, config")
@@ -57,7 +57,7 @@ export function useAnaliticasDatasets(accountId: string | undefined, options?: {
         return true;
       }) as ExtRuleRow[];
 
-      const dbMap = new Map<string, Record<string, string>>();
+      const dbMap: Record<string, Record<string, string>> = {};
       const ruleMap = new Map(ruleRows.map((r) => [r.id, r.name]));
       const ids = fileIdsSig ? fileIdsSig.split(",").filter(Boolean) : [];
       const BATCH = 120;
@@ -72,9 +72,8 @@ export function useAnaliticasDatasets(accountId: string | undefined, options?: {
           const ruleName = ruleMap.get(ex.rule_id);
           if (!ruleName) return;
           const key = `${ruleName}_EX`;
-          const prev = dbMap.get(ex.audio_file_id) || {};
-          prev[key] = ex.extracted_value || "";
-          dbMap.set(ex.audio_file_id, prev);
+          if (!dbMap[ex.audio_file_id]) dbMap[ex.audio_file_id] = {};
+          dbMap[ex.audio_file_id][key] = ex.extracted_value || "";
         });
       }
       return { ruleRows, dbMap };
