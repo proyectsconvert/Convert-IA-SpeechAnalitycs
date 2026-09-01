@@ -221,10 +221,10 @@ export default function ModelosTranscripcionPage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <AudioLines className="w-6 h-6 text-accent" />
-            Cascada de Transcripción
+            Modelos de Transcripción
           </h1>
           <p className="text-sm text-muted-foreground">
-            Configura el orden de prioridad de los proveedores de transcripción para <strong className="text-foreground">todas las cuentas</strong>.
+            Configura el orden de prioridad y los motores de transcripción para <strong className="text-foreground">todas las cuentas</strong>.
             Si el primero falla, se usa el siguiente automáticamente.
           </p>
         </div>

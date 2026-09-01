@@ -732,8 +732,8 @@ export default function AnalyticsWhatsappPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Chats</h1>
-          <p className="text-sm text-muted-foreground">Upload, review, and analyze chats with AI (parallel channel to Gestión de Grabaciones).</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Conversaciones</h1>
+          <p className="text-sm text-muted-foreground">Gestión y analítica de conversaciones de WhatsApp con IA.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {(metrics.inProcess > 0 || metrics.errored > 0) && (

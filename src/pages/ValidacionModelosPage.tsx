@@ -97,10 +97,10 @@ export default function ValidacionModelosPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
             <ShieldCheck className="h-6 w-6 text-primary" />
-            Validación de Modelos
+            Evaluación de Modelos
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Verifica el estado de las claves API de los proveedores de IA y transcripción usadas por la plataforma.
+            Evaluación y validación de claves API y modelos de transcripción e IA.
           </p>
           {lastCheck && (
             <p className="text-xs text-muted-foreground mt-1">

@@ -27,9 +27,12 @@ export default function AuditoriaPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <ClipboardList className="w-6 h-6 text-accent" /> Registro de Auditoría
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <ClipboardList className="w-6 h-6 text-accent" /> Auditoría
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Registro cronológico de actividad y eventos de seguridad.</p>
+        </div>
       </div>
 
       <div className="bg-card rounded-xl border border-border overflow-hidden">

@@ -70,8 +70,8 @@ export default function AnaliticasLayout() {
     <div className="space-y-5 animate-fade-in">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Indicadores Estratégicos</h1>
-          <p className="text-sm text-muted-foreground">Summary, voice, and WhatsApp with aligned filters.</p>
+          <h1 className="text-2xl font-bold text-foreground">Indicadores</h1>
+          <p className="text-sm text-muted-foreground">Métricas e indicadores estratégicos de operación.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <nav className="flex rounded-lg bg-muted/50 p-1 gap-0.5">

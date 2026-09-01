@@ -202,10 +202,10 @@ export default function ConsultaIAPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-accent" /> AI Copilot
+            <Sparkles className="w-6 h-6 text-accent" /> Copiloto IA
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Pregunta sobre llamadas, WhatsApp y métricas de{" "}
+            Consultas conversacionales y análisis global con IA para{" "}
             <span className="font-medium text-foreground">{currentAccount?.account.name}</span>
           </p>
         </div>

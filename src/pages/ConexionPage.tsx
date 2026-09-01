@@ -618,8 +618,8 @@ export default function ConexionPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Cable className="w-6 h-6 text-accent" /> Conexión</h1>
-          <p className="text-sm text-muted-foreground mt-1">Configuración e importación controlada de grabaciones desde servidores SFTP/FTP.</p>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Cable className="w-6 h-6 text-accent" /> Integraciones</h1>
+          <p className="text-sm text-muted-foreground mt-1">Conexiones SFTP, API y almacenamiento seguro de grabaciones.</p>
         </div>
         <Badge variant="outline" className="w-fit gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Credenciales protegidas por referencia segura</Badge>
       </div>

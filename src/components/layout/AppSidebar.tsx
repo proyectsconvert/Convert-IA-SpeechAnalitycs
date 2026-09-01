@@ -28,26 +28,26 @@ const mainNav: Array<{
   sparkles?: boolean;
   perm: NavPerm;
 }> = [
-  { title: "Panel General", url: "/", icon: Sparkles, perm: { module: "dashboard", action: "view" } },
-  { title: "Gestión de Grabaciones", url: "/biblioteca", icon: FileAudio, perm: { module: "library", action: "view" } },
-  { title: "Gestión de Chats", url: "/analytics-whatsapp", icon: MessageCircle, perm: { module: "whatsapp", action: "view" } },
+  { title: "Inicio", url: "/", icon: Sparkles, perm: { module: "dashboard", action: "view" } },
+  { title: "Grabaciones", url: "/biblioteca", icon: FileAudio, perm: { module: "library", action: "view" } },
+  { title: "Conversaciones", url: "/analytics-whatsapp", icon: MessageCircle, perm: { module: "whatsapp", action: "view" } },
   { title: "Transcripciones", url: "/transcripciones", icon: Mic, perm: { module: "transcriptions", action: "view" } },
-  { title: "Analítica Unificada", url: "/analizador-total", icon: BarChart3, sparkles: true, perm: { module: "analytics", action: "view" } },
-  { title: "Indicadores Estratégicos", url: "/analiticas", icon: LineChart, perm: { module: "reports", action: "view" } },
-  { title: "AI Copilot", url: "/consulta-ia", icon: BrainCircuit, perm: { module: "chat_ai", action: "view" } },
-  { title: "Reglas de Extracción", url: "/extracciones", icon: Tags, perm: { module: "analytics", action: "view" } }, // analiticas era un typo, el modulo es analytics
-  { title: "Catálogo de Prompts", url: "/prompts", icon: BookOpen, perm: { module: "prompts", action: "view" } },
+  { title: "Analítica", url: "/analizador-total", icon: BarChart3, sparkles: true, perm: { module: "analytics", action: "view" } },
+  { title: "Indicadores", url: "/analiticas", icon: LineChart, perm: { module: "reports", action: "view" } },
+  { title: "Copiloto IA", url: "/consulta-ia", icon: BrainCircuit, perm: { module: "chat_ai", action: "view" } },
+  { title: "Reglas de Extracción", url: "/extracciones", icon: Tags, perm: { module: "analytics", action: "view" } },
+  { title: "Prompts", url: "/prompts", icon: BookOpen, perm: { module: "prompts", action: "view" } },
 ];
 
 const adminNav: Array<{ title: string; url: string; icon: typeof Building2; perm: NavPerm }> = [
-  { title: "Conexión", url: "/conexion", icon: Cable, perm: { module: "connections", action: "view" } },
-  { title: "Modelos Transcripción", url: "/modelos-transcripcion", icon: AudioLines, perm: { module: "transcription_models", action: "view" } },
-  { title: "Validación de Modelos", url: "/validacion-modelos", icon: ShieldCheck, perm: { module: "transcription_models", action: "view" } },
-  { title: "Gestión de Cuentas", url: "/cuentas", icon: Building2, perm: { module: "accounts", action: "view" } },
-  { title: "Gestión de Usuarios", url: "/usuarios", icon: Users, perm: { module: "users", action: "view" } },
+  { title: "Integraciones", url: "/conexion", icon: Cable, perm: { module: "connections", action: "view" } },
+  { title: "Modelos de Transcripción", url: "/modelos-transcripcion", icon: AudioLines, perm: { module: "transcription_models", action: "view" } },
+  { title: "Evaluación de Modelos", url: "/validacion-modelos", icon: ShieldCheck, perm: { module: "transcription_models", action: "view" } },
+  { title: "Cuentas", url: "/cuentas", icon: Building2, perm: { module: "accounts", action: "view" } },
+  { title: "Usuarios", url: "/usuarios", icon: Users, perm: { module: "users", action: "view" } },
   { title: "Roles y Permisos", url: "/roles", icon: Shield, perm: { module: "roles", action: "view" } },
-  { title: "Límites", url: "/limites", icon: Gauge, perm: { module: "billing", action: "view" } }, // Usamos billing para limites según catálogo
-  { title: "Facturaciónn", url: "/facturacion", icon: CreditCard, perm: { module: "billing", action: "view" } },
+  { title: "Uso y Límites", url: "/limites", icon: Gauge, perm: { module: "billing", action: "view" } },
+  { title: "Facturación", url: "/facturacion", icon: CreditCard, perm: { module: "billing", action: "view" } },
   { title: "Auditoría", url: "/auditoria", icon: ClipboardList, perm: { module: "audit", action: "view" } },
   { title: "Soporte", url: "/soporte", icon: HelpCircle, perm: { module: "soporte", action: "view" } },
 ];

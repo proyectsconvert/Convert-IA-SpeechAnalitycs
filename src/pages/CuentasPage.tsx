@@ -146,8 +146,8 @@ export default function CuentasPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Gestión de Cuentas</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Administra cuentas, planes y macroprocesos de operación.</p>
+          <h1 className="text-2xl font-bold text-foreground">Cuentas</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Gestión de organizaciones, planes y macroprocesos de operación.</p>
         </div>
         <Button onClick={() => { setName(""); setMacroproceso("ventas"); setShowNew(true); }}>
           <Plus className="w-4 h-4 mr-1" /> Nueva Cuenta

@@ -597,8 +597,8 @@ export default function BibliotecaPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Gestión de Grabaciones</h1>
-          <p className="text-sm text-muted-foreground">Upload, organize, and process audio before analysis.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Grabaciones</h1>
+          <p className="text-sm text-muted-foreground">Gestión y biblioteca de llamadas de audio para análisis.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {(() => {

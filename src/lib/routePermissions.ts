@@ -21,6 +21,7 @@ const EXACT: Record<string, { module: string; action: string }> = {
   "/soporte": { module: "soporte", action: "view" },
   "/conexion": { module: "connections", action: "view" },
   "/modelos-transcripcion": { module: "transcription_models", action: "view" },
+  "/validacion-modelos": { module: "transcription_models", action: "view" },
   "/configuracion": { module: "settings", action: "view" },
 };
 

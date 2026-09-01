@@ -34,8 +34,8 @@ export default function LimitesPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Límites y Métricas</h1>
-        <p className="text-sm text-muted-foreground mt-1">Gestiona límites de uso y visualiza métricas de consumo por cuenta.</p>
+        <h1 className="text-2xl font-bold text-foreground">Uso y Límites</h1>
+        <p className="text-sm text-muted-foreground mt-1">Cuotas de procesamiento, límites de uso y métricas de consumo por cuenta.</p>
       </div>
       <Tabs defaultValue="quick" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">

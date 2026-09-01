@@ -109,9 +109,9 @@ export default function PromptsPage() {
     <div className="space-y-5 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Catálogo de Prompts</h1>
+          <h1 className="text-2xl font-bold text-foreground">Prompts</h1>
           <p className="text-muted-foreground text-sm">
-            Templates are used when processing voice interactions and WhatsApp conversations.
+            Catálogo de prompts y plantillas de análisis por macroproceso.
           </p>
         </div>
       </div>

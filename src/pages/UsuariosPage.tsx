@@ -237,7 +237,10 @@ export default function UsuariosPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Gestión de Usuarios</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Usuarios</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Miembros del equipo, roles y permisos de acceso.</p>
+        </div>
         {profile?.is_superadmin && (
           <Button onClick={() => setShowNew(true)}><Plus className="w-4 h-4 mr-1" /> Crear Usuario</Button>
         )}

@@ -369,7 +369,7 @@ export default function AnalizadorTotalPage() {
         <div className="flex items-center gap-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-foreground">Analítica Unificada</h1>
+              <h1 className="text-2xl font-bold text-foreground">Analítica</h1>
               <Badge variant="outline" className="text-xs font-semibold gap-1.5 px-2.5 py-1 bg-muted/40 border-border">
                 <span>{mpConfig.emoji}</span>
                 <span>{mpConfig.label}</span>
