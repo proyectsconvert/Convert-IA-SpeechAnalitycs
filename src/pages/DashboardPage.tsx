@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/contexts/AccountContext";
 import { format, subDays, eachDayOfInterval, isAfter } from "date-fns";
 import { Loader2 } from "lucide-react";
-import { useDashboardLayout, DashboardWidgetConfig } from "@/hooks/useDashboardLayout";
+import { useHomeDashboardLayout, DashboardWidgetConfig } from "@/hooks/useHomeDashboardLayout";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { AddWidgetModal } from "@/components/dashboard/AddWidgetModal";
 import { WidgetContainer } from "@/components/dashboard/WidgetContainer";
@@ -43,7 +43,7 @@ export default function DashboardPage() {
     setIsCustomizing,
     isDirty,
     isSaving,
-  } = useDashboardLayout(accountId);
+  } = useHomeDashboardLayout(accountId);
 
   // 1. Carga de datos unificados maestros (Misma fuente que Analítica Unificada)
   const since = getRecentWindowStart();

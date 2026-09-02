@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DashboardWidgetConfig } from "@/hooks/useDashboardLayout";
+import { DashboardWidgetConfig } from "@/hooks/useHomeDashboardLayout";
 import {
   GripVertical,
   ArrowUp,

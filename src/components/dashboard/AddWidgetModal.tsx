@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { WidgetType } from "@/hooks/useDashboardLayout";
+import { WidgetType } from "@/hooks/useHomeDashboardLayout";
 import {
   PieChart,
   BarChart3,

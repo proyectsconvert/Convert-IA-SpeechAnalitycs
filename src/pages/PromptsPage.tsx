@@ -14,10 +14,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PromptDialog, PromptRecord } from "@/components/prompts/PromptDialog";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 export default function PromptsPage() {
   const { currentAccount } = useAccount();
   const { user } = useAuth();
   const accountId = currentAccount?.account_id;
+  const queryClient = useQueryClient();
 
   const [prompts, setPrompts] = useState<PromptRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +59,8 @@ export default function PromptsPage() {
       const { error } = await supabase.from("prompts").delete().eq("id", selectedPromptId);
       if (error) throw error;
       setPrompts((prev) => prev.filter((p) => p.id !== selectedPromptId));
+      queryClient.invalidateQueries({ queryKey: ["prompts-upload"] });
+      queryClient.invalidateQueries({ queryKey: ["prompts"] });
       toast.success("Prompt eliminado correctamente");
     } catch (error) {
       console.error("Error deleting prompt:", error);
@@ -73,6 +78,8 @@ export default function PromptsPage() {
       const { error } = await supabase.from("prompts").update({ status: newStatus }).eq("id", promptId);
       if (error) throw error;
       await fetchPrompts();
+      queryClient.invalidateQueries({ queryKey: ["prompts-upload"] });
+      queryClient.invalidateQueries({ queryKey: ["prompts"] });
       toast.success("Estado del prompt actualizado correctamente");
     } catch (error) {
       console.error("Error updating prompt status:", error);
@@ -94,6 +101,8 @@ export default function PromptsPage() {
 
   const handleSuccess = () => {
     fetchPrompts();
+    queryClient.invalidateQueries({ queryKey: ["prompts-upload"] });
+    queryClient.invalidateQueries({ queryKey: ["prompts"] });
     setSelectedPrompt(null);
   };
 

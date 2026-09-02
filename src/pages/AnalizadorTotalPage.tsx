@@ -72,7 +72,7 @@ type PresentationRow = Database["public"]["Tables"]["presentations"]["Row"];
 export default function AnalizadorTotalPage() {
   const { currentAccount } = useAccount();
   const accountId = currentAccount?.account_id;
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [urlHydrated, setUrlHydrated] = useState(false);
 
   // Estados de Filtros
@@ -90,7 +90,15 @@ export default function AnalizadorTotalPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const [activeTab, setActiveTab] = useState("data");
+  const initialTab = searchParams.get("tab") || "data";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [filters, setFilters] = useState<AnalizadorFilters>({
