@@ -72,7 +72,7 @@ export default function TranscripcionesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
-  const { data: transData, isLoading } = useTranscripcionesList(
+  const { data: transData, isLoading, isFetching } = useTranscripcionesList(
     accountId,
     currentPage,
     pageSize,
@@ -83,6 +83,7 @@ export default function TranscripcionesPage() {
 
   const transcriptions = transData?.data || [];
   const totalCount = transData?.count || 0;
+  const isSearchActive = callSearchTerm !== debouncedCallSearchTerm || isFetching;
 
   const { data: allAnalyses } = useQuery({
     queryKey: ["all-analyses", accountId],
@@ -544,20 +545,30 @@ export default function TranscripcionesPage() {
     );
   }
 
-  if (!transcriptions?.length) {
+  const isSearchingOrFiltering = !!callSearchTerm || !!debouncedCallSearchTerm || sentimentFilter !== "all";
+
+  // Solo mostrar estado vacío total si la cuenta NO tiene ninguna grabación y no hay búsqueda activa
+  if (!isLoading && totalCount === 0 && !isSearchingOrFiltering && viewMode === "classic") {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 text-center gap-4">
-        <div className="w-20 h-20 rounded-2xl bg-accent/10 flex items-center justify-center">
-          <FileAudio className="w-10 h-10 text-accent" />
+      <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
+        <TranscriptsPageHeader
+          viewMode={viewMode}
+          onChangeViewMode={setViewMode}
+          isSavingPreference={isSavingPreference}
+        />
+        <div className="flex flex-col items-center justify-center flex-1 text-center gap-4 py-20">
+          <div className="w-20 h-20 rounded-2xl bg-accent/10 flex items-center justify-center">
+            <FileAudio className="w-10 h-10 text-accent" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-1">Aún no hay transcripciones</h2>
+            <p className="text-sm text-muted-foreground">Sube y procesa archivos en Gestión de Grabaciones.</p>
+          </div>
+          <Button variant="outline" onClick={() => navigate("/biblioteca")}>
+            <FileAudio className="w-4 h-4 mr-2" />
+            Ir a Gestión de Grabaciones
+          </Button>
         </div>
-        <div>
-          <h2 className="text-lg font-semibold text-foreground mb-1">Aún no hay transcripciones</h2>
-          <p className="text-sm text-muted-foreground">Sube y procesa archivos en Gestión de Grabaciones.</p>
-        </div>
-        <Button variant="outline" onClick={() => navigate("/biblioteca")}>
-          <FileAudio className="w-4 h-4 mr-2" />
-          Ir a Gestión de Grabaciones
-        </Button>
       </div>
     );
   }
@@ -730,6 +741,7 @@ export default function TranscripcionesPage() {
             transcriptions={filteredTranscriptions}
             totalCount={totalCount}
             isLoading={isLoading}
+            isFetching={isSearchActive}
             onSelectCall={(id) => {
               setSelectedAudioId(id);
               setDetailModalOpen(true);

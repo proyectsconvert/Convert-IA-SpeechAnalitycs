@@ -9,14 +9,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Settings, User, Shield, Palette } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNavigationPreference } from "@/hooks/useNavigationPreference";
 import { useTranscriptViewPreference } from "@/hooks/useTranscriptViewPreference";
 
 export default function ConfiguracionPage() {
   const { user, profile } = useAuth();
   const { currentAccount } = useAccount();
   const queryClient = useQueryClient();
-  const { layoutMode, setLayoutMode } = useNavigationPreference();
   const { viewMode: transcriptViewMode, setViewMode: setTranscriptViewMode } = useTranscriptViewPreference();
 
   const [fullName, setFullName] = useState(profile?.full_name || "");
@@ -153,50 +151,6 @@ export default function ConfiguracionPage() {
               <p className="text-xs text-muted-foreground mt-0.5">
                 Personaliza la experiencia visual y la disposición de los espacios de trabajo.
               </p>
-            </div>
-
-            {/* Preferencia de Navegación Principal */}
-            <div className="space-y-3 border-t border-border/60 pt-4">
-              <Label className="text-sm font-semibold text-foreground">Navegación Principal de la Plataforma</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div
-                  onClick={() => setLayoutMode("dock")}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-1.5 ${
-                    layoutMode === "dock"
-                      ? "border-accent bg-accent/10 shadow-xs"
-                      : "border-border hover:border-border/80 bg-secondary/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-foreground">Dock Superior (Recomendado)</span>
-                    {layoutMode === "dock" && (
-                      <span className="w-2.5 h-2.5 rounded-full bg-accent" />
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Barra superior interactiva con efecto Dock de macOS. Maximiza 100% el ancho útil de dashboards y analítica.
-                  </p>
-                </div>
-
-                <div
-                  onClick={() => setLayoutMode("sidebar")}
-                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col gap-1.5 ${
-                    layoutMode === "sidebar"
-                      ? "border-accent bg-accent/10 shadow-xs"
-                      : "border-border hover:border-border/80 bg-secondary/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-foreground">Sidebar Clásico</span>
-                    {layoutMode === "sidebar" && (
-                      <span className="w-2.5 h-2.5 rounded-full bg-accent" />
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Menú lateral tradicional colapsable a la izquierda con lista de módulos vertical.
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* Preferencia de Visualización de Transcripciones */}

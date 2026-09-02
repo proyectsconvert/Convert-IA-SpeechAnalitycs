@@ -1,47 +1,48 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import {
-  Search,
-  Filter,
-  X,
-  FileSpreadsheet,
+  FileAudio,
   Calendar,
   Clock,
   User,
-  Phone,
   Briefcase,
+  ChevronRight,
   TrendingUp,
   TrendingDown,
   Minus,
-  Award,
-  ChevronRight,
-  FileAudio,
-  ShieldAlert,
-  CheckCircle2,
   Sparkles,
-  ArrowUpDown,
+  Award,
+  Search,
+  Filter,
+  FileSpreadsheet,
+  Loader2,
+  X,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQualityEvaluations } from "@/hooks/useQualityEvaluations";
-import { useAccount } from "@/contexts/AccountContext";
-import type { TranscriptSortOrder, TranscriptSentimentFilter } from "./TranscriptCallListPanel";
 import { cn } from "@/lib/utils";
+import { useAccount } from "@/contexts/AccountContext";
+import { useQualityEvaluations } from "@/hooks/useQualityEvaluations";
+import type {
+  TranscriptSortOrder,
+  TranscriptSentimentFilter,
+} from "@/components/transcripts/TranscriptCallListPanel";
 
 interface TranscriptExplorerListProps {
   transcriptions: unknown[];
   totalCount: number;
   isLoading: boolean;
-  onSelectCall: (audioFileId: string) => void;
+  isFetching?: boolean;
+  onSelectCall: (audioId: string) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   sortOrder: TranscriptSortOrder;
   setSortOrder: (order: TranscriptSortOrder) => void;
   sentimentFilter: TranscriptSentimentFilter;
-  setSentimentFilter: (filter: TranscriptSentimentFilter) => void;
+  setSentimentFilter: (sentiment: TranscriptSentimentFilter) => void;
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
@@ -54,6 +55,7 @@ export function TranscriptExplorerList({
   transcriptions,
   totalCount,
   isLoading,
+  isFetching = false,
   onSelectCall,
   searchTerm,
   setSearchTerm,
@@ -99,21 +101,23 @@ export function TranscriptExplorerList({
     ["neutral", "Neutral"],
   ];
 
+  const hasActiveFilters = sentimentFilter !== "all" || sortOrder !== "newest";
+
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-background">
-      {/* 1. Barra Superior de Búsqueda, Filtros y Acciones */}
-      <div className="px-6 py-4 border-b border-border bg-card/60 space-y-3 flex-shrink-0">
+      {/* 1. Barra Superior de Búsqueda, Filtros y Acciones (Fija / Sticky) */}
+      <div className="sticky top-0 z-20 px-6 py-3.5 border-b border-border bg-background/95 backdrop-blur-md shadow-2xs space-y-3 flex-shrink-0">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           {/* Contador y Título */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center text-accent">
-              <FileAudio className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-accent/15 flex items-center justify-center text-accent">
+              <FileAudio className="w-4.5 h-4.5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-foreground">
+              <h2 className="text-sm font-bold text-foreground">
                 Explorador de Grabaciones
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 {totalCount > 0
                   ? `Mostrando ${(currentPage - 1) * transcriptions.length + 1} - ${Math.min(
                       currentPage * transcriptions.length,
@@ -129,68 +133,72 @@ export function TranscriptExplorerList({
             <Button
               variant="outline"
               size="sm"
-              className="h-9 gap-1.5 text-xs font-semibold"
+              className="h-8.5 gap-1.5 text-xs font-semibold rounded-xl"
               onClick={onOpenExport}
               title="Exportar listado a Excel / CSV"
             >
-              <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="hidden sm:inline">Exportar</span>
             </Button>
 
             <Button
               variant={showFilters ? "default" : "outline"}
               size="sm"
-              className="h-9 gap-1.5 text-xs font-semibold"
+              className="h-8.5 gap-1.5 text-xs font-semibold rounded-xl"
               onClick={() => setShowFilters(!showFilters)}
             >
-              <Filter className="w-4 h-4" />
+              <Filter className="w-3.5 h-3.5" />
               <span>Filtros</span>
-              {(sentimentFilter !== "all" || sortOrder !== "newest") && (
+              {hasActiveFilters && (
                 <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
               )}
             </Button>
           </div>
         </div>
 
-        {/* Campo de Búsqueda */}
+        {/* Campo de Búsqueda con indicador de carga suave (cero parpadeo y espacio correcto) */}
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar por nombre de archivo, asesor, campaña o texto transcrito..."
-            className="pl-10 pr-10 h-10 text-sm bg-background border-border rounded-xl shadow-inner"
+            className="pl-10 pr-10 h-9 text-xs rounded-xl bg-card border-border/80 focus-visible:ring-1 focus-visible:ring-accent"
           />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+            {isFetching ? (
+              <Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />
+            ) : searchTerm ? (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {/* Panel Desplegable de Filtros */}
         {showFilters && (
-          <div className="p-4 bg-secondary/30 rounded-xl border border-border space-y-3 animate-fade-in">
+          <div className="p-3.5 bg-secondary/30 border border-border/70 rounded-2xl space-y-3 animate-in fade-in-50 duration-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Ordenamiento */}
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <ArrowUpDown className="w-3 h-3" /> Ordenar Por
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Ordenar por
                 </p>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="flex gap-1.5 flex-wrap">
                   {sortOptions.map(([val, label]) => (
                     <button
                       key={val}
                       type="button"
                       onClick={() => setSortOrder(val)}
                       className={cn(
-                        "text-xs py-1.5 px-3 rounded-lg font-medium transition-all text-center",
+                        "text-xs py-1 px-2.5 rounded-lg font-medium transition-all",
                         sortOrder === val
-                          ? "bg-accent text-accent-foreground shadow-sm"
+                          ? "bg-accent text-accent-foreground shadow-2xs font-bold"
                           : "bg-card text-muted-foreground hover:text-foreground border border-border/60"
                       )}
                     >
@@ -202,8 +210,8 @@ export function TranscriptExplorerList({
 
               {/* Filtro de Sentimiento */}
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3" /> Sentimiento
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-accent" /> Sentimiento
                 </p>
                 <div className="flex gap-1.5 flex-wrap">
                   {sentimentOptions.map(([val, label]) => (
@@ -212,9 +220,9 @@ export function TranscriptExplorerList({
                       type="button"
                       onClick={() => setSentimentFilter(val)}
                       className={cn(
-                        "text-xs py-1.5 px-3 rounded-full font-medium transition-all",
+                        "text-xs py-1 px-2.5 rounded-lg font-medium transition-all",
                         sentimentFilter === val
-                          ? "bg-accent text-accent-foreground shadow-sm"
+                          ? "bg-accent text-accent-foreground shadow-2xs font-bold"
                           : "bg-card text-muted-foreground hover:text-foreground border border-border/60"
                       )}
                     >
@@ -228,26 +236,27 @@ export function TranscriptExplorerList({
         )}
       </div>
 
-      {/* 2. Grid de Grabaciones */}
+      {/* 2. Grid de Grabaciones: Ancho completo + Mayor cantidad de columnas */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="p-6 max-w-7xl mx-auto">
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="p-5 border border-border rounded-2xl bg-card/60 space-y-3">
-                  <Skeleton className="h-5 w-3/4 rounded-md" />
-                  <Skeleton className="h-4 w-1/2 rounded-md" />
+        <div className="px-6 py-4 w-full">
+          {/* Carga Inicial Únicamente (Evita parpadeo durante búsquedas) */}
+          {isLoading && (!transcriptions || transcriptions.length === 0) ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="p-4 border border-border/70 rounded-2xl bg-card/60 space-y-2.5">
+                  <Skeleton className="h-4 w-3/4 rounded-md" />
+                  <Skeleton className="h-3 w-1/2 rounded-md" />
                   <div className="flex gap-2 pt-2">
-                    <Skeleton className="h-6 w-20 rounded-full" />
-                    <Skeleton className="h-6 w-16 rounded-full" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
                   </div>
                 </div>
               ))}
             </div>
           ) : transcriptions.length === 0 ? (
-            <div className="py-20 text-center border border-dashed rounded-2xl bg-card/30 max-w-lg mx-auto">
-              <Search className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-foreground mb-1">Sin grabaciones</h3>
+            <div className="py-20 text-center border border-dashed rounded-2xl bg-card/30 max-w-md mx-auto">
+              <Search className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+              <h3 className="text-sm font-bold text-foreground mb-1">Sin grabaciones</h3>
               <p className="text-xs text-muted-foreground max-w-xs mx-auto mb-4">
                 No se encontraron grabaciones con los criterios de búsqueda seleccionados.
               </p>
@@ -259,13 +268,19 @@ export function TranscriptExplorerList({
                     setSearchTerm("");
                     setSentimentFilter("all");
                   }}
+                  className="rounded-xl text-xs"
                 >
                   Restablecer filtros
                 </Button>
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div
+              className={cn(
+                "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5 transition-opacity duration-150",
+                isFetching ? "opacity-80" : "opacity-100"
+              )}
+            >
               {transcriptions.map((item) => {
                 const row = item as {
                   id: string;
@@ -301,50 +316,50 @@ export function TranscriptExplorerList({
                   <div
                     key={row.id}
                     onClick={() => onSelectCall(audioId)}
-                    className="group relative bg-card hover:bg-card/90 border border-border/80 hover:border-accent/50 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between gap-4"
+                    className="group relative bg-card hover:bg-card/90 border border-border/80 hover:border-accent/40 rounded-2xl p-3.5 transition-all duration-200 cursor-pointer shadow-2xs hover:shadow-md flex flex-col justify-between gap-3 hover:-translate-y-0.5"
                   >
                     {/* Header: Nombre y flecha */}
                     <div>
-                      <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                            <FileAudio className="w-4 h-4" />
+                          <div className="w-7 h-7 rounded-lg bg-accent/10 text-accent flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                            <FileAudio className="w-3.5 h-3.5" />
                           </div>
-                          <h3 className="text-sm font-bold text-foreground leading-snug truncate group-hover:text-accent transition-colors">
+                          <h3 className="text-xs font-bold text-foreground leading-snug truncate group-hover:text-accent transition-colors" title={af?.file_name || "Grabación"}>
                             {af?.file_name || "Grabación de audio"}
                           </h3>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
+                        <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-0.5" />
                       </div>
 
                       {/* Fecha y Duración */}
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                          <Calendar className="w-3 h-3 flex-shrink-0" />
                           {af?.created_at
                             ? format(new Date(af.created_at), "dd/MM/yyyy · HH:mm")
                             : "—"}
                         </span>
                         <span>·</span>
                         <span className="flex items-center gap-1 font-mono">
-                          <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                          <Clock className="w-3 h-3 flex-shrink-0" />
                           {formatTime(durationSeconds)}
                         </span>
                       </div>
 
                       {/* Asesor y Campaña */}
                       {(agentName || campaign) && (
-                        <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-2 text-xs text-foreground/80 flex-wrap">
+                        <div className="mt-2 pt-2 border-t border-border/50 flex items-center gap-1.5 text-[11px] text-foreground/80 flex-wrap">
                           {agentName && (
-                            <span className="inline-flex items-center gap-1 bg-secondary/80 px-2 py-0.5 rounded-md">
-                              <User className="w-3 h-3 text-blue-400" />
-                              <span className="truncate max-w-[130px]">{agentName}</span>
+                            <span className="inline-flex items-center gap-1 bg-secondary/80 px-1.5 py-0.5 rounded text-[10px] font-medium">
+                              <User className="w-2.5 h-2.5 text-blue-400" />
+                              <span className="truncate max-w-[110px]">{agentName}</span>
                             </span>
                           )}
                           {campaign && (
-                            <span className="inline-flex items-center gap-1 bg-secondary/80 px-2 py-0.5 rounded-md">
-                              <Briefcase className="w-3 h-3 text-purple-400" />
-                              <span className="truncate max-w-[120px]">{campaign}</span>
+                            <span className="inline-flex items-center gap-1 bg-secondary/80 px-1.5 py-0.5 rounded text-[10px] font-medium">
+                              <Briefcase className="w-2.5 h-2.5 text-purple-400" />
+                              <span className="truncate max-w-[100px]">{campaign}</span>
                             </span>
                           )}
                         </div>
@@ -352,37 +367,37 @@ export function TranscriptExplorerList({
                     </div>
 
                     {/* Footer: Badges de Sentimiento, Score y Matriz de Calidad */}
-                    <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2 flex-wrap text-xs">
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-1.5 flex-wrap text-xs">
+                      <div className="flex items-center gap-1 flex-wrap">
                         {/* Sentimiento */}
                         {sentiment ? (
                           <Badge
                             variant="outline"
                             className={cn(
-                              "text-[10px] capitalize font-semibold px-2 py-0.5",
+                              "text-[9px] capitalize font-semibold px-1.5 py-0.2",
                               sentiment === "positive"
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
                                 : sentiment === "negative"
-                                  ? "bg-red-500/10 text-red-400 border-red-500/30"
-                                  : "bg-secondary text-muted-foreground"
+                                  ? "bg-red-500/10 text-red-500 border-red-500/30"
+                                  : "bg-secondary text-muted-foreground border-border/60"
                             )}
                           >
                             {sentiment === "positive" ? (
-                              <TrendingUp className="w-3 h-3 mr-1" />
+                              <TrendingUp className="w-2.5 h-2.5 mr-1" />
                             ) : sentiment === "negative" ? (
-                              <TrendingDown className="w-3 h-3 mr-1" />
+                              <TrendingDown className="w-2.5 h-2.5 mr-1" />
                             ) : (
-                              <Minus className="w-3 h-3 mr-1" />
+                              <Minus className="w-2.5 h-2.5 mr-1" />
                             )}
                             {sentiment}
                           </Badge>
                         ) : (
-                          <span className="text-[10px] text-muted-foreground">Sin análisis</span>
+                          <span className="text-[9px] text-muted-foreground">Sin análisis</span>
                         )}
 
                         {/* Score IA */}
                         {score !== null && (
-                          <span className="text-[10px] font-mono font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-md border border-primary/20">
+                          <span className="text-[9px] font-mono font-bold bg-primary/10 text-primary px-1.5 py-0.2 rounded border border-primary/20">
                             Score: {score}%
                           </span>
                         )}
@@ -393,7 +408,7 @@ export function TranscriptExplorerList({
                         <Badge
                           variant="outline"
                           className={cn(
-                            "text-[10px] font-mono font-semibold px-2 py-0.5 gap-1",
+                            "text-[9px] font-mono font-semibold px-1.5 py-0.2 gap-1",
                             qualityEval.has_critical_error
                               ? "bg-red-500/10 text-red-400 border-red-500/30"
                               : qualityEval.percent_score >= 70
@@ -402,12 +417,12 @@ export function TranscriptExplorerList({
                           )}
                           title={`Calidad: ${Math.round(qualityEval.percent_score)}%`}
                         >
-                          <Award className="w-3 h-3" />
+                          <Award className="w-2.5 h-2.5" />
                           <span>Calidad {Math.round(qualityEval.percent_score)}%</span>
                         </Badge>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
-                          <Award className="w-3 h-3 opacity-40" />
+                        <span className="text-[9px] text-muted-foreground/60 flex items-center gap-1">
+                          <Award className="w-2.5 h-2.5 opacity-40" />
                           <span>Sin matriz</span>
                         </span>
                       )}
@@ -422,11 +437,11 @@ export function TranscriptExplorerList({
 
       {/* 3. Paginación Inferior */}
       {totalPages > 1 && (
-        <div className="px-6 py-3 border-t border-border bg-card/60 flex items-center justify-between gap-3 flex-shrink-0">
+        <div className="px-6 py-2.5 border-t border-border bg-card/60 flex items-center justify-between gap-3 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs font-semibold"
+            className="h-7.5 text-xs font-semibold rounded-lg"
             disabled={currentPage <= 1 || isLoading}
             onClick={() => onPageChange(currentPage - 1)}
           >
@@ -440,7 +455,7 @@ export function TranscriptExplorerList({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs font-semibold"
+            className="h-7.5 text-xs font-semibold rounded-lg"
             disabled={currentPage >= totalPages || isLoading}
             onClick={() => onPageChange(currentPage + 1)}
           >

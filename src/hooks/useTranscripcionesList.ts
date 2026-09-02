@@ -79,6 +79,8 @@ export function useTranscripcionesList(
 
       return { data: data || [], count: count || 0 };
     },
+    placeholderData: (previousData) => previousData,
+    staleTime: 1000 * 20,
     enabled: !!accountId,
   });
 }

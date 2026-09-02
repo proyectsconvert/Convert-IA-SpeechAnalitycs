@@ -11,15 +11,12 @@ import {
   LogOut,
   Plus,
   Loader2,
-  PanelLeft,
-  LayoutGrid,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccount } from "@/contexts/AccountContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useWhatsappUpload } from "@/contexts/WhatsappUploadContext";
-import { useNavigationPreference } from "@/hooks/useNavigationPreference";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/sonner";
 import {
@@ -34,18 +31,32 @@ import { AppDock } from "./AppDock";
 import { MobileNavDrawer } from "./MobileNavDrawer";
 import { Button } from "@/components/ui/button";
 import { useAudioUploadModal } from "@/contexts/AudioUploadModalContext";
+import { QuickActionsCommandDialog } from "./QuickActionsCommandDialog";
 
 export function AppTopBar() {
   const { user, profile, signOut } = useAuth();
   const { currentAccount, accounts, setCurrentAccount } = useAccount();
   const { isUploading, uploadProgress, uploadStatus } = useWhatsappUpload();
   const { can } = usePermissions();
-  const { layoutMode, setLayoutMode } = useNavigationPreference();
   const { openUploadModal } = useAudioUploadModal();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  const isMac = typeof window !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
 
   const canUpload = can("library", "create") || can("uploads", "create");
   const canConfig = can("settings", "view");
@@ -203,15 +214,19 @@ export function AppTopBar() {
           </Button>
         )}
 
-        {/* Buscador Rápido */}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Buscar..."
-            className="pl-8 pr-3 py-1 text-xs bg-secondary/70 hover:bg-secondary focus:bg-background rounded-xl border border-border/60 outline-none focus:ring-2 focus:ring-accent/30 w-36 lg:w-44 transition-all placeholder:text-muted-foreground"
-          />
-        </div>
+        {/* Botón Accesos Rápidos (Ctrl+K / ⌘K) */}
+        <button
+          type="button"
+          onClick={() => setCommandPaletteOpen(true)}
+          className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground rounded-xl border border-border/60 transition-all shadow-2xs group cursor-pointer"
+          title="Abrir accesos rápidos (Ctrl + K / ⌘K)"
+        >
+          <Search className="w-3.5 h-3.5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
+          <span className="text-[11px] font-medium">Accesos rápidos</span>
+          <kbd className="pointer-events-none inline-flex h-4.5 select-none items-center gap-0.5 rounded border border-border/80 bg-background/80 px-1.5 font-mono text-[9px] font-bold text-muted-foreground shadow-2xs">
+            {isMac ? "⌘K" : "Ctrl+K"}
+          </kbd>
+        </button>
 
         {/* Notificaciones */}
         <DropdownMenu>
@@ -266,37 +281,6 @@ export function AppTopBar() {
               </p>
             </div>
 
-            {/* Alternador de Modo de Navegación */}
-            <div className="p-1.5">
-              <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                Modo de Navegación
-              </div>
-              <div className="grid grid-cols-2 gap-1 bg-secondary/60 p-1 rounded-xl">
-                <button
-                  onClick={() => setLayoutMode("dock")}
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                    layoutMode === "dock"
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5 text-accent" /> Dock
-                </button>
-                <button
-                  onClick={() => setLayoutMode("sidebar")}
-                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                    layoutMode === "sidebar"
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <PanelLeft className="w-3.5 h-3.5" /> Sidebar
-                </button>
-              </div>
-            </div>
-
-            <DropdownMenuSeparator />
-
             {accounts.length > 1 && (
               <DropdownMenuItem onClick={() => navigate("/select-account")} className="text-xs font-medium py-2 rounded-xl">
                 <Building2 className="w-3.5 h-3.5 mr-2 text-muted-foreground" /> Cambiar cuenta
@@ -316,6 +300,12 @@ export function AppTopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Paleta Flotante de Accesos Rápidos (Ctrl+K / ⌘K) */}
+      <QuickActionsCommandDialog
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+      />
     </header>
   );
 }
