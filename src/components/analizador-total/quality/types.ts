@@ -7,6 +7,9 @@ export interface QualityMatrixVersion {
   account_id: string;
   version: number;
   label: string | null;
+  description?: string | null;
+  macroproceso?: string | null;
+  is_default?: boolean;
   is_active: boolean;
   created_at: string;
 }

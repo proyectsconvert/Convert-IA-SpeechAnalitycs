@@ -1,29 +1,124 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAccount } from "@/contexts/AccountContext";
-import { useActiveMatrix, useSeedMatrix, useCreateEmptyMatrix, useUpsertItem, useDeleteItem, useUpsertSection, useDeleteSection } from "@/hooks/useQualityMatrix";
+import {
+  useQualityMatrices,
+  useMatrixDetails,
+  useCreateMatrix,
+  useDuplicateMatrix,
+  useSetDefaultMatrix,
+  useUpdateMatrixMetadata,
+  useDeleteMatrix,
+  useUpsertItem,
+  useDeleteItem,
+  useUpsertSection,
+  useDeleteSection,
+} from "@/hooks/useQualityMatrix";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Sparkles, Save, Loader2, CheckCircle2, Layers, AlertTriangle, ShieldAlert, Shield, FilePlus2, RotateCcw } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Plus,
+  Trash2,
+  Sparkles,
+  Save,
+  Loader2,
+  CheckCircle2,
+  Layers,
+  AlertTriangle,
+  ShieldAlert,
+  Shield,
+  FilePlus2,
+  Star,
+  Copy,
+  Edit2,
+  MoreVertical,
+  Check,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { QualityMatrixItem, QualityMatrixSection } from "./types";
 
 export function QualityMatrixEditor() {
   const { currentAccount } = useAccount();
   const accountId = currentAccount?.account_id;
-  const { data, isLoading } = useActiveMatrix(accountId);
-  const seed = useSeedMatrix(accountId);
-  const createEmpty = useCreateEmptyMatrix(accountId);
+
+  // 1. List of all matrices for this account
+  const { data: matrices = [], isLoading: loadingMatrices } = useQualityMatrices(accountId);
+
+  // 2. Active matrix selection state
+  const [selectedMatrixId, setSelectedMatrixId] = useState<string | null>(null);
+
+  // Select first/default matrix automatically if none is selected
+  useEffect(() => {
+    if (matrices.length > 0) {
+      if (!selectedMatrixId || !matrices.some((m) => m.id === selectedMatrixId)) {
+        const defaultMat = matrices.find((m) => m.is_default) || matrices[0];
+        setSelectedMatrixId(defaultMat.id);
+      }
+    }
+  }, [matrices, selectedMatrixId]);
+
+  // 3. Query details for currently selected matrix
+  const { data: matrixData, isLoading: loadingDetails } = useMatrixDetails(selectedMatrixId || undefined);
+
+  // Mutations
+  const createMatrix = useCreateMatrix(accountId);
+  const duplicateMatrix = useDuplicateMatrix(accountId);
+  const setDefaultMatrix = useSetDefaultMatrix(accountId);
+  const updateMetadata = useUpdateMatrixMetadata(accountId);
+  const deleteMatrix = useDeleteMatrix(accountId);
   const upsertItem = useUpsertItem(accountId);
   const deleteItem = useDeleteItem(accountId);
   const upsertSection = useUpsertSection(accountId);
   const deleteSection = useDeleteSection(accountId);
 
+  // Modals state
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [newMatrixName, setNewMatrixName] = useState("");
+  const [newMatrixDesc, setNewMatrixDesc] = useState("");
+  const [newMatrixMacro, setNewMatrixMacro] = useState("ventas");
+  const [newMatrixTemplate, setNewMatrixTemplate] = useState<"standard" | "blank">("standard");
+  const [newMatrixIsDefault, setNewMatrixIsDefault] = useState(false);
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editLabel, setEditLabel] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editMacro, setEditMacro] = useState("ventas");
+
+  // Local changes state
   const [editingSections, setEditingSections] = useState<Record<string, Partial<QualityMatrixSection>>>({});
   const [editingItems, setEditingItems] = useState<Record<string, Partial<QualityMatrixItem>>>({});
   const [savingAll, setSavingAll] = useState(false);
+
+  // Reset dirty states when matrix ID changes
+  useEffect(() => {
+    setEditingSections({});
+    setEditingItems({});
+  }, [selectedMatrixId]);
 
   const dirtySectionIds = useMemo(
     () => Object.keys(editingSections).filter((id) => Object.keys(editingSections[id] || {}).length > 0),
@@ -37,16 +132,23 @@ export function QualityMatrixEditor() {
 
   const totalDirty = dirtySectionIds.length + dirtyItemIds.length;
 
-  if (isLoading) {
+  // Selected matrix object
+  const currentMatrix = useMemo(
+    () => matrices.find((m) => m.id === selectedMatrixId) || matrixData?.version,
+    [matrices, selectedMatrixId, matrixData],
+  );
+
+  if (loadingMatrices || (selectedMatrixId && loadingDetails)) {
     return (
       <div className="flex flex-col items-center justify-center p-12 space-y-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Cargando matriz de calidad...</p>
+        <p className="text-sm text-muted-foreground">Cargando matrices de calidad...</p>
       </div>
     );
   }
 
-  if (!data?.version || data.sections.length === 0) {
+  // If no matrix exists yet in this account
+  if (matrices.length === 0 || !matrixData?.version) {
     return (
       <Card className="border border-border shadow-sm">
         <CardContent className="p-12 text-center space-y-5 max-w-lg mx-auto">
@@ -54,27 +156,46 @@ export function QualityMatrixEditor() {
             <Layers className="w-6 h-6" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-lg font-bold text-foreground">Matriz de Calidad y Experiencia</h3>
+            <h3 className="text-lg font-bold text-foreground">Matrices de Calidad y Experiencia</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Puedes cargar la plantilla estándar global (5 bloques regulares + 2 críticos) o crear una matriz en blanco para estructurar tus propios bloques manualmente.
+              Crea tu primera matriz de calidad para evaluar llamadas y conversaciones con criterios y errores críticos personalizados.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
             <Button
-              onClick={() => seed.mutate(undefined, { onSuccess: () => toast.success("Plantilla estándar cargada exitosamente") })}
-              disabled={seed.isPending || createEmpty.isPending}
+              onClick={() => {
+                createMatrix.mutate(
+                  {
+                    name: "Matriz Global de Calidad",
+                    templateType: "standard",
+                    isDefault: true,
+                    macroproceso: "ventas",
+                  },
+                  {
+                    onSuccess: (res: any) => {
+                      setSelectedMatrixId(res.id);
+                      toast.success("Matriz estándar creada exitosamente");
+                    },
+                  },
+                );
+              }}
+              disabled={createMatrix.isPending}
               className="rounded-lg text-xs w-full sm:w-auto"
             >
-              {seed.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              Cargar Plantilla Estándar
+              {createMatrix.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+              Crear con Plantilla Estándar
             </Button>
             <Button
               variant="outline"
-              onClick={() => createEmpty.mutate(undefined, { onSuccess: () => toast.success("Matriz creada en blanco. Agrega tus bloques manualmente.") })}
-              disabled={seed.isPending || createEmpty.isPending}
+              onClick={() => {
+                setNewMatrixName("Nueva Matriz de Calidad");
+                setNewMatrixTemplate("blank");
+                setNewMatrixIsDefault(true);
+                setShowNewModal(true);
+              }}
               className="rounded-lg text-xs w-full sm:w-auto"
             >
-              {createEmpty.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FilePlus2 className="w-4 h-4 mr-2" />}
+              <FilePlus2 className="w-4 h-4 mr-2" />
               Crear en Blanco (Manual)
             </Button>
           </div>
@@ -83,7 +204,7 @@ export function QualityMatrixEditor() {
     );
   }
 
-  const itemsBySection = (sectionId: string) => (data.items ?? []).filter((i) => i.section_id === sectionId);
+  const itemsBySection = (sectionId: string) => (matrixData.items ?? []).filter((i) => i.section_id === sectionId);
 
   const saveAll = async () => {
     if (totalDirty === 0) {
@@ -94,18 +215,27 @@ export function QualityMatrixEditor() {
     try {
       // 1. Save sections
       for (const sId of dirtySectionIds) {
-        const sec = data.sections.find((s) => s.id === sId);
+        const sec = matrixData.sections.find((s) => s.id === sId);
         if (sec) {
-          await upsertSection.mutateAsync({ ...sec, ...editingSections[sId], version_id: data.version.id });
+          await upsertSection.mutateAsync({
+            ...sec,
+            ...editingSections[sId],
+            version_id: matrixData.version.id,
+          });
         }
       }
 
       // 2. Save items
-      const allItems = data.items ?? [];
+      const allItems = matrixData.items ?? [];
       for (const iId of dirtyItemIds) {
         const item = allItems.find((i) => i.id === iId);
         if (item) {
-          await upsertItem.mutateAsync({ ...item, ...editingItems[iId], section_id: item.section_id });
+          await upsertItem.mutateAsync({
+            ...item,
+            ...editingItems[iId],
+            section_id: item.section_id,
+            version_id: matrixData.version.id,
+          });
         }
       }
 
@@ -126,39 +256,111 @@ export function QualityMatrixEditor() {
   };
 
   // Calculate total matrix weight points
-  const totalPoints = data.items.reduce((sum, item) => {
+  const totalPoints = matrixData.items.reduce((sum, item) => {
     const patch = editingItems[item.id];
     const score = patch?.max_score !== undefined ? patch.max_score : item.max_score;
     const active = patch?.is_active !== undefined ? patch.is_active : item.is_active;
     return active ? sum + (score || 0) : sum;
   }, 0);
 
+  const openEditModal = () => {
+    if (currentMatrix) {
+      setEditLabel(currentMatrix.label || "");
+      setEditDesc(currentMatrix.description || "");
+      setEditMacro(currentMatrix.macroproceso || "ventas");
+      setShowEditModal(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header Sticky */}
-      <div className="sticky top-0 z-10 -mx-1 px-4 py-3 bg-background/95 backdrop-blur border-b border-border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-foreground">Matriz de Calidad y Experiencia</h3>
-            <Badge variant="outline" className="text-[11px] font-medium bg-primary/5 text-primary border-primary/20">
-              v{data.version.version} · {data.sections.length} Bloques · {totalPoints} Pts Totales
-            </Badge>
+      {/* Selector & Actions Bar */}
+      <div className="sticky top-0 z-10 -mx-1 px-4 py-3 bg-background/95 backdrop-blur border-b border-border rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-sm">
+        {/* Left: Matrix Selector & Badges */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="min-w-[220px]">
+            <Select
+              value={selectedMatrixId || undefined}
+              onValueChange={(val) => {
+                if (totalDirty > 0) {
+                  if (confirm("Tienes cambios sin guardar. ¿Deseas descartarlos para cambiar de matriz?")) {
+                    setEditingSections({});
+                    setEditingItems({});
+                    setSelectedMatrixId(val);
+                  }
+                } else {
+                  setSelectedMatrixId(val);
+                }
+              }}
+            >
+              <SelectTrigger className="h-9 font-semibold text-xs border-primary/30 bg-card">
+                <SelectValue placeholder="Seleccionar Matriz..." />
+              </SelectTrigger>
+              <SelectContent>
+                {matrices.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{m.label || `Matriz v${m.version}`}</span>
+                      {m.is_default && (
+                        <span className="text-[10px] bg-amber-500/10 text-amber-500 font-bold px-1.5 py-0.2 rounded flex items-center gap-1">
+                          <Star className="w-2.5 h-2.5 fill-amber-500" /> Predeterminada
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Estructura estandarizada: personaliza tus bloques o activa el check de <strong className="text-destructive font-semibold">Bloque Crítico</strong> en los bloques que anulen la nota a 0% si no se cumplen.
-            {totalDirty > 0 && (
-              <span className="ml-2 text-amber-600 font-semibold">
-                · {totalDirty} cambio(s) sin guardar
-              </span>
+
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[11px] font-medium bg-primary/5 text-primary border-primary/20">
+              {matrixData.sections.length} Bloques · {totalPoints} Pts Totales
+            </Badge>
+
+            {currentMatrix?.is_default ? (
+              <Badge variant="secondary" className="text-[11px] bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1 font-semibold">
+                <Star className="w-3 h-3 fill-amber-500" /> Predeterminada de la Cuenta
+              </Badge>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground hover:text-amber-500 gap-1 px-2"
+                onClick={() => {
+                  if (selectedMatrixId) {
+                    setDefaultMatrix.mutate(selectedMatrixId, {
+                      onSuccess: () => toast.success(`"${currentMatrix?.label}" establecida como matriz predeterminada`),
+                    });
+                  }
+                }}
+                disabled={setDefaultMatrix.isPending}
+                title="Hacer que esta matriz sea la utilizada por defecto al procesar llamadas y en automatizaciones"
+              >
+                <Star className="w-3.5 h-3.5" /> Hacer Predeterminada
+              </Button>
             )}
-          </p>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              onClick={openEditModal}
+              title="Editar nombre y descripción"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
+
+        {/* Right: Matrix Actions */}
         <div className="flex flex-wrap items-center gap-2">
           {totalDirty > 0 && (
             <Button variant="ghost" size="sm" onClick={discardAll} disabled={savingAll} className="text-xs h-8">
               Descartar
             </Button>
           )}
+
           <Button
             size="sm"
             onClick={saveAll}
@@ -168,44 +370,96 @@ export function QualityMatrixEditor() {
             {savingAll ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
             Guardar matriz{totalDirty > 0 ? ` (${totalDirty})` : ""}
           </Button>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              if (confirm("¿Deseas crear una nueva versión de matriz en blanco para armarla manualmente desde cero? Las evaluaciones anteriores mantendrán su histórico intacto.")) {
-                createEmpty.mutate(undefined, {
-                  onSuccess: () => toast.success("Nueva versión creada en blanco. Agrega tus bloques y preguntas."),
-                });
-              }
+              setNewMatrixName("");
+              setNewMatrixDesc("");
+              setNewMatrixMacro(currentMatrix?.macroproceso || "ventas");
+              setNewMatrixTemplate("standard");
+              setNewMatrixIsDefault(false);
+              setShowNewModal(true);
             }}
-            disabled={createEmpty.isPending || seed.isPending}
-            className="text-xs h-8"
-            title="Crea una nueva versión en blanco respetando el historial previo"
+            className="text-xs h-8 gap-1"
           >
-            {createEmpty.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <FilePlus2 className="w-3.5 h-3.5 mr-1.5" />}
-            Nueva en Blanco (Manual)
+            <Plus className="w-3.5 h-3.5" /> Nueva Matriz
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (confirm("¿Deseas cargar la plantilla estándar de Matriz de Calidad y Experiencia (5 bloques regulares + 2 críticos)? Se creará una nueva versión activa y las evaluaciones anteriores mantendrán su histórico.")) {
-                seed.mutate(undefined, { onSuccess: () => toast.success("Plantilla estándar cargada exitosamente") });
-              }
-            }}
-            disabled={seed.isPending || createEmpty.isPending}
-            className="text-xs h-8"
-            title="Restaura los 5 bloques regulares y 2 críticos predeterminados"
-          >
-            {seed.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5 text-accent" />}
-            Cargar Plantilla Estándar
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                <MoreVertical className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem
+                onClick={() => {
+                  if (selectedMatrixId) {
+                    duplicateMatrix.mutate(
+                      {
+                        sourceVersionId: selectedMatrixId,
+                        newLabel: `${currentMatrix?.label || "Matriz"} (Copia)`,
+                      },
+                      {
+                        onSuccess: (res: any) => {
+                          setSelectedMatrixId(res.id);
+                          toast.success("Matriz duplicada exitosamente");
+                        },
+                      },
+                    );
+                  }
+                }}
+                className="text-xs gap-2 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" /> Duplicar esta Matriz
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={openEditModal} className="text-xs gap-2 cursor-pointer">
+                <Edit2 className="w-3.5 h-3.5" /> Renombrar / Descripción
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                onClick={() => {
+                  if (matrices.length <= 1) {
+                    toast.error("No puedes eliminar la única matriz de calidad de la cuenta.");
+                    return;
+                  }
+                  if (confirm(`¿Estás seguro de eliminar la matriz "${currentMatrix?.label}"? Las evaluaciones históricas seguirán asociadas a esta versión.`)) {
+                    if (selectedMatrixId) {
+                      deleteMatrix.mutate(selectedMatrixId, {
+                        onSuccess: () => {
+                          toast.success("Matriz eliminada");
+                          const remaining = matrices.filter((m) => m.id !== selectedMatrixId);
+                          setSelectedMatrixId(remaining[0]?.id || null);
+                        },
+                      });
+                    }
+                  }
+                }}
+                disabled={matrices.length <= 1 || deleteMatrix.isPending}
+                className="text-xs gap-2 text-destructive focus:text-destructive cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Eliminar Matriz
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
+      {/* Matrix Description Header */}
+      {currentMatrix?.description && (
+        <p className="text-xs text-muted-foreground px-1 -mt-3 italic">
+          {currentMatrix.description}
+        </p>
+      )}
+
       {/* Grid of Blocks */}
       <div className="space-y-4">
-        {data.sections.map((section, sIndex) => {
+        {matrixData.sections.map((section, sIndex) => {
           const sPatch = editingSections[section.id] || {};
           const sName = sPatch.name !== undefined ? sPatch.name : section.name;
           const sKind = sPatch.kind !== undefined ? sPatch.kind : section.kind;
@@ -284,12 +538,15 @@ export function QualityMatrixEditor() {
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs px-2.5"
-                      onClick={() => upsertItem.mutate({
-                        section_id: section.id,
-                        attribute: isCritical ? "Nuevo criterio crítico" : "Nueva validación de calidad",
-                        max_score: isCritical ? 10 : 10,
-                        affectation: isCritical ? "critico" : "none",
-                      })}
+                      onClick={() =>
+                        upsertItem.mutate({
+                          section_id: section.id,
+                          version_id: matrixData.version.id,
+                          attribute: isCritical ? "Nuevo criterio crítico" : "Nueva validación de calidad",
+                          max_score: 10,
+                          affectation: isCritical ? "critico" : "none",
+                        })
+                      }
                     >
                       <Plus className="w-3 h-3 mr-1" /> Pregunta / Validación
                     </Button>
@@ -299,7 +556,7 @@ export function QualityMatrixEditor() {
                       className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                       onClick={() => {
                         if (confirm(`¿Eliminar el bloque "${section.name}" y todas sus preguntas?`)) {
-                          deleteSection.mutate(section.id);
+                          deleteSection.mutate({ id: section.id, version_id: matrixData.version.id });
                         }
                       }}
                     >
@@ -314,7 +571,7 @@ export function QualityMatrixEditor() {
                   <div className="flex items-center gap-2 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
                     <ShieldAlert className="w-4 h-4 shrink-0" />
                     <div>
-                      <span className="font-bold">Regla de Falla Crítica:</span> Si el agente no cumple alguna de las preguntas de este bloque, la calificación total de la interacción quedará automáticamente en <strong>0 puntos (0%)</strong>. Si cumple, conservará sus puntos ({blockPoints} pts).
+                      <span className="font-bold">Regla de Falla Crítica:</span> Si el asesor no cumple alguna de las preguntas de este bloque, la calificación total de la interacción quedará automáticamente en <strong>0 puntos (0%)</strong>.
                     </div>
                   </div>
                 )}
@@ -378,7 +635,7 @@ export function QualityMatrixEditor() {
                               className={`h-8 text-xs text-center font-bold ${itemIsCrit ? "text-destructive" : ""}`}
                               value={getV("max_score") ?? 0}
                               onChange={(ev) => updateI({ max_score: Number(ev.target.value) })}
-                              title="Puntaje que suma si el agente cumple este criterio"
+                              title="Puntaje que suma si el asesor cumple este criterio"
                             />
                           </div>
                           <div className="col-span-1 flex items-center justify-between gap-1">
@@ -391,7 +648,7 @@ export function QualityMatrixEditor() {
                               size="sm"
                               variant="ghost"
                               className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                              onClick={() => deleteItem.mutate(item.id)}
+                              onClick={() => deleteItem.mutate({ id: item.id, version_id: matrixData.version.id })}
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>
@@ -408,16 +665,16 @@ export function QualityMatrixEditor() {
       </div>
 
       {/* Add Section Buttons */}
-      {data.sections.length < 15 && (
+      {matrixData.sections.length < 20 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
           <Button
             variant="outline"
             onClick={() =>
               upsertSection.mutate({
-                version_id: data.version!.id,
-                name: `Bloque Regular ${data.sections.length + 1}`,
+                version_id: matrixData.version!.id,
+                name: `Bloque Regular ${matrixData.sections.length + 1}`,
                 kind: "regular",
-                sort_order: data.sections.length + 1,
+                sort_order: matrixData.sections.length + 1,
               })
             }
             className="py-4 border-dashed border-2 text-xs flex items-center justify-center gap-1.5"
@@ -429,10 +686,10 @@ export function QualityMatrixEditor() {
             variant="outline"
             onClick={() =>
               upsertSection.mutate({
-                version_id: data.version!.id,
-                name: `Bloque Crítico ${data.sections.length + 1}`,
+                version_id: matrixData.version!.id,
+                name: `Bloque Crítico ${matrixData.sections.length + 1}`,
                 kind: "critical",
-                sort_order: data.sections.length + 1,
+                sort_order: matrixData.sections.length + 1,
               })
             }
             className="py-4 border-dashed border-2 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 flex items-center justify-center gap-1.5"
@@ -441,6 +698,195 @@ export function QualityMatrixEditor() {
           </Button>
         </div>
       )}
+
+      {/* Modal: Crear Nueva Matriz */}
+      <Dialog open={showNewModal} onOpenChange={setShowNewModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nueva Matriz de Calidad</DialogTitle>
+            <DialogDescription>
+              Crea una matriz de evaluación personalizada para un proceso específico de tu operación.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Nombre de la Matriz *</label>
+              <Input
+                placeholder="Ej: Matriz Ventas Prepago, Matriz Cobranzas..."
+                value={newMatrixName}
+                onChange={(e) => setNewMatrixName(e.target.value)}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Descripción (Opcional)</label>
+              <Textarea
+                placeholder="Detalla el propósito de esta matriz de calidad..."
+                value={newMatrixDesc}
+                onChange={(e) => setNewMatrixDesc(e.target.value)}
+                rows={2}
+                className="text-xs resize-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Macroproceso</label>
+                <Select value={newMatrixMacro} onValueChange={setNewMatrixMacro}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ventas">Ventas</SelectItem>
+                    <SelectItem value="cobranza">Cobranzas</SelectItem>
+                    <SelectItem value="servicio_cliente">Servicio al Cliente</SelectItem>
+                    <SelectItem value="retencion">Retención</SelectItem>
+                    <SelectItem value="soporte">Soporte Técnico</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Plantilla Inicial</label>
+                <Select value={newMatrixTemplate} onValueChange={(v: any) => setNewMatrixTemplate(v)}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Estándar (5 bloques + 2 críticos)</SelectItem>
+                    <SelectItem value="blank">En blanco (Manual)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20">
+              <div className="space-y-0.5">
+                <label className="text-xs font-semibold text-foreground cursor-pointer">
+                  Matriz Predeterminada
+                </label>
+                <p className="text-[11px] text-muted-foreground">
+                  Se usará por defecto al procesar llamadas y en automatizaciones.
+                </p>
+              </div>
+              <Switch checked={newMatrixIsDefault} onCheckedChange={setNewMatrixIsDefault} />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowNewModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={!newMatrixName.trim() || createMatrix.isPending}
+              onClick={() => {
+                createMatrix.mutate(
+                  {
+                    name: newMatrixName.trim(),
+                    description: newMatrixDesc.trim(),
+                    macroproceso: newMatrixMacro,
+                    templateType: newMatrixTemplate,
+                    isDefault: newMatrixIsDefault,
+                  },
+                  {
+                    onSuccess: (res: any) => {
+                      setShowNewModal(false);
+                      setSelectedMatrixId(res.id);
+                      toast.success(`Matriz "${res.label}" creada exitosamente`);
+                    },
+                  },
+                );
+              }}
+            >
+              {createMatrix.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1.5" />}
+              Crear Matriz
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Editar Metadatos */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Información de Matriz</DialogTitle>
+            <DialogDescription>
+              Modifica el nombre y descripción descriptiva de esta matriz de calidad.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Nombre de la Matriz *</label>
+              <Input
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Descripción</label>
+              <Textarea
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                rows={3}
+                className="text-xs resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Macroproceso</label>
+              <Select value={editMacro} onValueChange={setEditMacro}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ventas">Ventas</SelectItem>
+                  <SelectItem value="cobranza">Cobranzas</SelectItem>
+                  <SelectItem value="servicio_cliente">Servicio al Cliente</SelectItem>
+                  <SelectItem value="retencion">Retención</SelectItem>
+                  <SelectItem value="soporte">Soporte Técnico</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowEditModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={!editLabel.trim() || updateMetadata.isPending}
+              onClick={() => {
+                if (selectedMatrixId) {
+                  updateMetadata.mutate(
+                    {
+                      versionId: selectedMatrixId,
+                      label: editLabel.trim(),
+                      description: editDesc.trim(),
+                      macroproceso: editMacro,
+                    },
+                    {
+                      onSuccess: () => {
+                        setShowEditModal(false);
+                        toast.success("Información actualizada");
+                      },
+                    },
+                  );
+                }
+              }}
+            >
+              {updateMetadata.isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+              Guardar Cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

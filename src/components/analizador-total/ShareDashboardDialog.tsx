@@ -170,7 +170,7 @@ export function ShareDashboardDialog({
             Compartir Dashboard en Tiempo Real
           </DialogTitle>
           <DialogDescription>
-            Genera un enlace público para que interesados externos vean el "Centro Visual" y "Agentes" con datos actualizados.
+            Genera un enlace público para que interesados externos vean el "Dashboard General" y "Desempeño de Agentes" con datos actualizados.
           </DialogDescription>
         </DialogHeader>
 

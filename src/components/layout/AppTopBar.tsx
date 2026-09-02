@@ -33,6 +33,7 @@ import { Progress } from "@/components/ui/progress";
 import { AppDock } from "./AppDock";
 import { MobileNavDrawer } from "./MobileNavDrawer";
 import { Button } from "@/components/ui/button";
+import { useAudioUploadModal } from "@/contexts/AudioUploadModalContext";
 
 export function AppTopBar() {
   const { user, profile, signOut } = useAuth();
@@ -40,6 +41,7 @@ export function AppTopBar() {
   const { isUploading, uploadProgress, uploadStatus } = useWhatsappUpload();
   const { can } = usePermissions();
   const { layoutMode, setLayoutMode } = useNavigationPreference();
+  const { openUploadModal } = useAudioUploadModal();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -193,7 +195,7 @@ export function AppTopBar() {
         {canUpload && (
           <Button
             size="sm"
-            onClick={() => navigate("/biblioteca")}
+            onClick={openUploadModal}
             className="h-8 px-3 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold shadow-xs flex items-center gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" />

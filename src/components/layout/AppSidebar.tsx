@@ -9,6 +9,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccount } from "@/contexts/AccountContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAudioUploadModal } from "@/contexts/AudioUploadModalContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter,
@@ -60,6 +61,7 @@ export function AppSidebar() {
   const { signOut } = useAuth();
   const { accounts, currentAccount, setCurrentAccount } = useAccount();
   const { can } = usePermissions();
+  const { openUploadModal } = useAudioUploadModal();
 
   const visibleMain = mainNav.filter((item) => can(item.perm.module, item.perm.action));
   const visibleAdmin = adminNav.filter((item) => can(item.perm.module, item.perm.action));
@@ -120,7 +122,7 @@ export function AppSidebar() {
 
       {!collapsed && canUpload && (
         <div className="px-3 pt-3">
-          <button onClick={() => navigate("/biblioteca")} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg py-2.5 text-sm font-semibold transition-colors active:scale-[0.97]">
+          <button onClick={openUploadModal} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg py-2.5 text-sm font-semibold transition-colors active:scale-[0.97]">
             + Subir grabación
           </button>
         </div>

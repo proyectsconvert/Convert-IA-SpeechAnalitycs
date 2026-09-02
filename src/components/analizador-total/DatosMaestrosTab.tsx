@@ -136,7 +136,7 @@ export function DatosMaestrosTab({
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-semibold flex items-center gap-2">
-                  <TableIcon className="w-4 h-4 text-primary" /> Datos Maestros
+                  <TableIcon className="w-4 h-4 text-primary" /> Explorador de Datos
                 </h3>
                 <Badge variant="outline" className="text-[11px] font-medium bg-muted/40">
                   {mpConfig.emoji} {mpConfig.label}

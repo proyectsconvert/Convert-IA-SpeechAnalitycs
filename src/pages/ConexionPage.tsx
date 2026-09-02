@@ -1,9 +1,10 @@
 import { forwardRef, useCallback, useEffect, useMemo, useState, useRef, type ReactNode } from "react";
-import { Cable, CalendarClock, CheckCircle2, Clock, Database, FileAudio, FolderTree, Loader2, MessageCircle, Phone, Play, Plus, RefreshCw, Save, ShieldCheck, Trash2, XCircle } from "lucide-react";
+import { Cable, CalendarClock, CheckCircle2, Clock, Database, FileAudio, FolderTree, Layers, Loader2, MessageCircle, Phone, Play, Plus, RefreshCw, Save, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/contexts/AccountContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQualityMatrices } from "@/hooks/useQualityMatrix";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ type RemoteAutomation = {
   is_enabled: boolean;
   import_filters: Record<string, unknown>;
   default_prompt_id: string | null;
+  default_quality_matrix_id: string | null;
   schedule_interval_minutes: number;
   last_run_at: string | null;
   next_run_at: string | null;
@@ -190,10 +192,13 @@ export default function ConexionPage() {
     enabled: !!accountId,
   });
 
+  const { data: qualityMatrices = [] } = useQualityMatrices(accountId);
+
   const [editingAutomationId, setEditingAutomationId] = useState<string | null>(null);
   const [automationForm, setAutomationForm] = useState({
     name: "",
     prompt_id: "",
+    quality_matrix_id: "default",
     is_enabled: true,
     schedule_interval_minutes: "60",
     importDestination: "grabaciones" as "grabaciones" | "whatsapp",
@@ -217,6 +222,7 @@ export default function ConexionPage() {
         setAutomationForm({
           name: aut.name,
           prompt_id: aut.default_prompt_id || "",
+          quality_matrix_id: aut.default_quality_matrix_id || "default",
           is_enabled: aut.is_enabled,
           schedule_interval_minutes: String(aut.schedule_interval_minutes),
           importDestination: (String(filters.importDestination || aut.target_module || "grabaciones")) as "grabaciones" | "whatsapp",
@@ -232,7 +238,7 @@ export default function ConexionPage() {
       // Solo resetear si el nombre no está ya vacío (para evitar loops)
       setAutomationForm(prev => {
         if (prev.name === "" && prev.prompt_id === "") return prev;
-        return { ...prev, ...initialFilters, name: "", prompt_id: "", is_enabled: true, importDestination: "grabaciones" as const, minMessagesForAnalysis: "3", minClientMessagesForAnalysis: "1" };
+        return { ...prev, ...initialFilters, name: "", prompt_id: "", quality_matrix_id: "default", is_enabled: true, importDestination: "grabaciones" as const, minMessagesForAnalysis: "3", minClientMessagesForAnalysis: "1" };
       });
     }
   }, [editingAutomationId, automations]);
@@ -345,6 +351,7 @@ export default function ConexionPage() {
             connection_id: activeConnectionId,
             name: automationForm.name,
             prompt_id: automationForm.prompt_id,
+            quality_matrix_id: automationForm.quality_matrix_id && automationForm.quality_matrix_id !== "default" ? automationForm.quality_matrix_id : null,
             schedule_interval_minutes: Number(automationForm.schedule_interval_minutes),
             is_enabled: automationForm.is_enabled,
             target_module: automationForm.importDestination,
@@ -715,7 +722,38 @@ export default function ConexionPage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Prompt para análisis"><Select value={automationForm.prompt_id} onValueChange={(v) => setAutomationForm(f => ({ ...f, prompt_id: v }))}><SelectTrigger><SelectValue placeholder="Seleccionar prompt" /></SelectTrigger><SelectContent>{prompts.map((prompt) => <SelectItem key={prompt.id} value={prompt.id}>{prompt.name} v{prompt.version}</SelectItem>)}</SelectContent></Select></Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Prompt para análisis *">
+                  <Select value={automationForm.prompt_id} onValueChange={(v) => setAutomationForm(f => ({ ...f, prompt_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar prompt" /></SelectTrigger>
+                    <SelectContent>
+                      {prompts.map((prompt) => (
+                        <SelectItem key={prompt.id} value={prompt.id}>{prompt.name} v{prompt.version}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field label="Matriz de Calidad para evaluación">
+                  <Select
+                    value={automationForm.quality_matrix_id || "default"}
+                    onValueChange={(v) => setAutomationForm(f => ({ ...f, quality_matrix_id: v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Matriz Predeterminada" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">
+                        Predeterminada {qualityMatrices.find(m => m.is_default) ? `(${qualityMatrices.find(m => m.is_default)?.label})` : ""}
+                      </SelectItem>
+                      {qualityMatrices.map((matrix) => (
+                        <SelectItem key={matrix.id} value={matrix.id}>
+                          {matrix.label || `Matriz v${matrix.version}`} {matrix.is_default ? "⭐" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+
               <Field label="Ejecutar cada X minutos"><Input type="number" min="1" value={automationForm.schedule_interval_minutes} onChange={(e) => setAutomationForm(f => ({ ...f, schedule_interval_minutes: e.target.value }))} /></Field>
 
               <div className="flex items-center gap-3 rounded-lg border border-purple-100 bg-purple-50/30 p-3">
@@ -777,10 +815,16 @@ export default function ConexionPage() {
                 {automations.map((aut) => (
                   <div key={aut.id} className="rounded-xl border border-border bg-card p-4 flex flex-col md:flex-row justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className={cn("h-2 w-2 rounded-full", aut.is_enabled ? "bg-green-500" : "bg-muted-foreground")} />
                         <h3 className="font-bold text-sm">{aut.name}</h3>
-                        <Badge variant="outline" className="text-[10px] uppercase">{prompts.find(p => p.id === aut.default_prompt_id)?.name || 'Sin prompt'}</Badge>
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                          Prompt: {prompts.find(p => p.id === aut.default_prompt_id)?.name || 'Sin prompt'}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] uppercase gap-1 text-primary border-primary/20 bg-primary/5">
+                          <Layers className="h-2.5 w-2.5" />
+                          Matriz: {qualityMatrices.find(m => m.id === aut.default_quality_matrix_id)?.label || 'Predeterminada'}
+                        </Badge>
                         <Badge variant="secondary" className="text-[10px] uppercase gap-1">
                           {(aut.target_module || (aut.import_filters as any)?.importDestination || 'grabaciones') === 'whatsapp'
                             ? <><MessageCircle className="h-2.5 w-2.5" /> WhatsApp</>

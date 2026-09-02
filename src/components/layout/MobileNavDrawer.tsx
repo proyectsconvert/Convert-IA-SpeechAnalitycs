@@ -4,6 +4,7 @@ import { NAVIGATION_CONFIG } from "@/config/navigationConfig";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAccount } from "@/contexts/AccountContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAudioUploadModal } from "@/contexts/AudioUploadModalContext";
 import {
   Sheet,
   SheetContent,
@@ -22,6 +23,7 @@ export function MobileNavDrawer() {
   const { can } = usePermissions();
   const { currentAccount } = useAccount();
   const { signOut } = useAuth();
+  const { openUploadModal } = useAudioUploadModal();
 
   const canUpload = can("library", "create") || can("uploads", "create");
   const canConfig = can("settings", "view");
@@ -60,7 +62,7 @@ export function MobileNavDrawer() {
             <button
               onClick={() => {
                 setOpen(false);
-                navigate("/biblioteca");
+                openUploadModal();
               }}
               className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl py-2 px-3 text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-colors"
             >

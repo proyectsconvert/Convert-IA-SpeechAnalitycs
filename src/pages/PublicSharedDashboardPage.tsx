@@ -314,11 +314,11 @@ export default function PublicSharedDashboardPage() {
             <TabsList className="bg-background border shadow-sm">
               <TabsTrigger value="visual" className="gap-2">
                 <LayoutDashboard className="w-4 h-4" />
-                Centro Visual
+                Dashboard General
               </TabsTrigger>
               <TabsTrigger value="agents" className="gap-2">
                 <UserRound className="w-4 h-4" />
-                Agentes
+                Desempeño de Agentes
               </TabsTrigger>
             </TabsList>
           </div>

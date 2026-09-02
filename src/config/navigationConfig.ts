@@ -77,26 +77,6 @@ export const NAVIGATION_CONFIG: DockGroupItem[] = [
     icon: FileAudio,
     url: "/biblioteca",
     perm: { module: "library", action: "view" },
-    children: [
-      {
-        id: "recordings-library",
-        title: "Grabaciones",
-        description: "Gestión y biblioteca de llamadas de audio",
-        url: "/biblioteca",
-        icon: FileAudio,
-        perm: { module: "library", action: "view" },
-      },
-      {
-        id: "recordings-upload",
-        title: "Subir grabación",
-        description: "Carga manual de archivos de audio",
-        url: "/biblioteca?upload=true",
-        icon: Plus,
-        perm: { module: "library", action: "create" },
-        isAction: true,
-        actionType: "upload",
-      },
-    ],
   },
 
   // 3. CONVERSACIONES

@@ -4,6 +4,7 @@ export type ProcessCallBody = {
   audio_file_id: string;
   account_id: string;
   prompt_id?: string | null;
+  quality_matrix_id?: string | null;
 };
 
 export type InvokeProcessCallOptions = {

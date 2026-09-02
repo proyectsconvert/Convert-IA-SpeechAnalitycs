@@ -1688,6 +1688,7 @@ async function runImportJob(
                 audio_file_id: audio.id,
                 account_id: connection.account_id,
                 prompt_id: job.prompt_id,
+                quality_matrix_id: (job as any)?.quality_matrix_id || (automation as any)?.default_quality_matrix_id || null,
               }),
             })
               .then(async (res) => {
@@ -2146,6 +2147,7 @@ serve(async (req) => {
         name: automation.name,
         import_filters: normalizedFilters,
         default_prompt_id: automation.prompt_id || null,
+        default_quality_matrix_id: automation.quality_matrix_id || automation.default_quality_matrix_id || null,
         schedule_interval_minutes: Math.max(1, Number(automation.schedule_interval_minutes || 60)),
         is_enabled: automation.is_enabled !== false,
         target_module: automation.target_module || normalizedFilters.importDestination || "audio",

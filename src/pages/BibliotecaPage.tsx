@@ -23,7 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AudioUploadDialog } from "@/components/AudioUploadDialog";
+import { useAudioUploadModal } from "@/contexts/AudioUploadModalContext";
+import { AudioProcessDialog } from "@/components/AudioProcessDialog";
 import { useBibliotecaFiles } from "@/hooks/useBibliotecaFiles";
 import { useBibliotecaVisibleData } from "@/hooks/useBibliotecaVisibleData";
 import { applyCallRule, type ExtRuleRow } from "@/lib/extractions/applyExtractionRules";
@@ -51,7 +52,7 @@ export default function BibliotecaPage() {
   const accountId = currentAccount?.account_id;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const { openUploadModal } = useAudioUploadModal();
   const [selected, setSelected] = useState<string[]>([]);
   const [processing, setProcessing] = useState<string[]>([]);
   const [promptDialog, setPromptDialog] = useState<{ open: boolean; fileIds: string[] }>({ open: false, fileIds: [] });
@@ -458,13 +459,19 @@ export default function BibliotecaPage() {
 
   const selectedPrompt = prompts?.find((prompt) => prompt.id === selectedPromptId);
 
-  const handleProcess = async (audioFileIds: string[], promptId?: string) => {
+  const handleProcess = async (
+    audioFileIds: string[],
+    options?: { promptId?: string; qualityMatrixId?: string }
+  ) => {
     if (!accountId) return;
     setPromptDialog({ open: false, fileIds: [] });
     for (const audioFileId of audioFileIds) {
       setProcessing((p) => [...p, audioFileId]);
       try {
-        let finalPromptId = promptId && promptId !== "none" ? promptId : undefined;
+        let finalPromptId =
+          options?.promptId && options.promptId !== "none" && options.promptId !== "default"
+            ? options.promptId
+            : undefined;
         if (!finalPromptId) {
           const audioFile = files?.find((f) => f.id === audioFileId);
           if (audioFile?.prompt_id) finalPromptId = audioFile.prompt_id;
@@ -473,6 +480,7 @@ export default function BibliotecaPage() {
           audio_file_id: audioFileId,
           account_id: accountId,
           prompt_id: finalPromptId,
+          quality_matrix_id: options?.qualityMatrixId,
         });
         if (error) throw error;
         toast.success("Procesamiento iniciado");
@@ -631,7 +639,7 @@ export default function BibliotecaPage() {
           <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)} disabled={!files?.length} className="gap-1.5 text-xs">
             <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar
           </Button>
-          <Button size="sm" onClick={() => setShowUploadDialog(true)} className="gap-1.5 text-xs">
+          <Button size="sm" onClick={openUploadModal} className="gap-1.5 text-xs">
             <Upload className="w-3.5 h-3.5" /> Subir Llamada
           </Button>
         </div>
@@ -984,69 +992,16 @@ export default function BibliotecaPage() {
         )}
       </div>
 
-      {/* Upload Dialog */}
-      <AudioUploadDialog
-        open={showUploadDialog}
-        onOpenChange={setShowUploadDialog}
-        onUploadComplete={() => {
-          queryClient.invalidateQueries({ queryKey: ["audio-files", accountId] });
-          queryClient.invalidateQueries({ queryKey: ["biblioteca-extractions", accountId] });
-        }}
-      />
 
-      {/* Prompt Selection Dialog */}
-        <Dialog open={promptDialog.open} onOpenChange={(open) => setPromptDialog({ open, fileIds: promptDialog.fileIds })}>
-         <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Procesar {promptDialog.fileIds.length} archivo(s)</DialogTitle>
-             <DialogDescription>Selecciona el prompt a usar para el reproceso; también se muestran los borradores disponibles.</DialogDescription>
-          </DialogHeader>
-           <Select 
-            value={selectedPromptId} 
-            onValueChange={(v) => {
-              setSelectedPromptId(v);
-              handleProcess(promptDialog.fileIds, v);
-              setPromptDialog({ open: false, fileIds: [] });
-              setTimeout(() => setSelectedPromptId("none"), 300);
-            }}
-           >
-             <SelectTrigger className="h-11"><SelectValue placeholder="Seleccionar prompt para iniciar..." /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Análisis predeterminado (Iniciar)</SelectItem>
-               {prompts?.filter((p) => p.status === "active").map((p) => (
-                 <SelectItem key={p.id} value={p.id}>{p.name}{p.category ? ` (${p.category})` : ""}</SelectItem>
-               ))}
-               {prompts?.some((p) => p.status === "draft") ? (
-                 <>
-                   <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Borradores</div>
-                   {prompts.filter((p) => p.status === "draft").map((p) => (
-                     <SelectItem key={p.id} value={p.id}>{p.name} (borrador)</SelectItem>
-                   ))}
-                 </>
-               ) : null}
-            </SelectContent>
-          </Select>
-           <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-2">
-             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Prompt seleccionado</p>
-             {selectedPrompt ? (
-               <>
-                 <div className="flex items-center gap-2">
-                   <span className="text-sm font-semibold text-foreground">{selectedPrompt.name}</span>
-                   <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
-                     {selectedPrompt.status === "draft" ? "Borrador" : "Activo"}
-                   </span>
-                 </div>
-                 <p className="text-xs text-muted-foreground">{selectedPrompt.description || "Prompt genérico de resumen/análisis sin descripción adicional."}</p>
-               </>
-             ) : (
-               <p className="text-sm text-muted-foreground">Seleccione un prompt para iniciar el análisis automáticamente.</p>
-             )}
-           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPromptDialog({ open: false, fileIds: [] })}>Cancelar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+      {/* Dual Prompt & Quality Matrix Selection Dialog */}
+      <AudioProcessDialog
+        open={promptDialog.open}
+        onOpenChange={(open) => setPromptDialog({ open, fileIds: promptDialog.fileIds })}
+        fileIds={promptDialog.fileIds}
+        onConfirm={(opts) => handleProcess(promptDialog.fileIds, opts)}
+        isProcessing={processing.length > 0}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, fileId: "", fileName: "" })}>

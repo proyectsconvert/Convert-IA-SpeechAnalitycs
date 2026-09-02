@@ -158,7 +158,7 @@ export function buildPresentationFromResponse(
         text: `${meta.rowsAnalyzed.toLocaleString("es")} interacciones · ${
           meta.source.mode === "upload"
             ? meta.source.fileName ?? "Excel subido"
-            : "Datos Maestros"
+            : "Explorador de Datos"
         }`,
         fontSize: 22, fontWeight: 400, color: "#94A3B8", align: "left",
       }),

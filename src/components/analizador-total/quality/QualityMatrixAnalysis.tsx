@@ -358,7 +358,7 @@ export function QualityMatrixAnalysis({ rawData = [] }: Props) {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" /> Análisis Matriz de Calidad
+              <Target className="h-4 w-4 text-primary" /> Análisis de Calidad
             </h2>
             <Badge variant="outline" className="text-[11px] font-medium bg-primary/5 text-primary border-primary/20">
               {evals.length} Evaluaciones

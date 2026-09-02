@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import { Upload, Loader2, Sparkles, FileAudio, CheckCircle, XCircle, AlertTriangle, Plus, FilePlus } from "lucide-react";
+import { Upload, Loader2, Sparkles, FileAudio, CheckCircle, XCircle, AlertTriangle, Plus, FilePlus, Layers, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAccount } from "@/contexts/AccountContext";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatRlsErrorMessage } from "@/lib/supabaseErrors";
 import { invokeProcessCall } from "@/lib/invokeProcessCall";
@@ -19,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FileUploadItem } from "@/components/AudioUpload";
 import { useAccountLimits } from "@/hooks/useAccountLimits";
+import { useQualityMatrices } from "@/hooks/useQualityMatrix";
 
 
 const ALLOWED_TYPES = ["audio/mpeg", "audio/wav", "audio/mp4", "audio/x-m4a", "audio/ogg", "audio/webm", "audio/flac", "audio/aac"];
@@ -61,6 +63,7 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
   const [files, setFiles] = useState<FileUploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedPromptId, setSelectedPromptId] = useState<string>("default");
+  const [selectedMatrixId, setSelectedMatrixId] = useState<string>("default");
   const [isRunning, setIsRunning] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState<"idle" | "uploading" | "processing" | "done">("idle");
@@ -74,7 +77,6 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
   const { user } = useAuth();
   const { currentAccount } = useAccount();
   const accountId = currentAccount?.account_id;
-  
 
   const { data: prompts } = useQuery({
     queryKey: ["prompts-upload", accountId],
@@ -85,6 +87,8 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
     },
     enabled: !!accountId && open,
   });
+
+  const { data: qualityMatrices = [] } = useQualityMatrices(open ? accountId : undefined);
 
   const saveDraftPrompt = async () => {
     if (!accountId || !user || !draftName.trim()) return;
@@ -137,7 +141,11 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
   const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); const d = Array.from(e.dataTransfer.files); if (d.length) addFiles(d); }, [addFiles]);
   const removeFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id));
 
-  const uploadSingleFile = async (item: FileUploadItem, promptId: string | null): Promise<{ success: boolean; audioId?: string; skipped?: boolean }> => {
+  const uploadSingleFile = async (
+    item: FileUploadItem,
+    promptId: string | null,
+    matrixId: string | null
+  ): Promise<{ success: boolean; audioId?: string; skipped?: boolean }> => {
     if (item.status === "error" || item.status === "duplicate") return { success: false, skipped: true };
     if (!accountId || !user) return { success: false };
     try {
@@ -155,7 +163,7 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
       setFiles((p) => p.map((f) => f.id === item.id ? { ...f, progress: 55 } : f));
       const { data: rec, error: dbErr } = await supabase.from("audio_files").insert({
         account_id: accountId, file_name: item.file.name, file_path: filePath, file_size_bytes: item.file.size,
-        mime_type: item.file.type, uploaded_by: user.id, prompt_id: promptId, status: "uploaded",
+        mime_type: item.file.type, uploaded_by: user.id, prompt_id: promptId, quality_matrix_id: matrixId, status: "uploaded",
       } as any).select().single();
       if (dbErr) throw dbErr;
       setFiles((p) => p.map((f) => f.id === item.id ? { ...f, progress: 100, status: "done" as const, dbId: rec.id } : f));
@@ -166,7 +174,7 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
     }
   };
 
-  const processCallsBatch = async (audioIds: string[], promptId: string | null) => {
+  const processCallsBatch = async (audioIds: string[], promptId: string | null, matrixId: string | null) => {
     const CONCURRENT = 5;
     const batches: string[][] = [];
     for (let i = 0; i < audioIds.length; i += CONCURRENT) batches.push(audioIds.slice(i, i + CONCURRENT));
@@ -177,7 +185,7 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
       await Promise.allSettled(
         batches[bi].map((id) =>
           invokeProcessCall(
-            { audio_file_id: id, account_id: accountId, prompt_id: promptId },
+            { audio_file_id: id, account_id: accountId, prompt_id: promptId, quality_matrix_id: matrixId },
             { skipRefresh: true }
           )
         )
@@ -199,6 +207,8 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
     }
     if (selectedPromptId === "new") { toast.error("Guarda el prompt borrador antes de subir"); return; }
     const promptId = selectedPromptId !== "default" ? selectedPromptId : null;
+    const defaultMat = qualityMatrices.find((m) => m.is_default);
+    const matrixId = selectedMatrixId !== "default" ? selectedMatrixId : defaultMat?.id || null;
     const validFiles = files.filter((f) => f.status === "pending");
     if (!validFiles.length) { toast.error("No hay archivos válidos"); return; }
     setIsRunning(true); setUploadProgress(0); setUploadPhase("uploading");
@@ -208,7 +218,7 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
     let totalUploaded = 0; const allAudioIds: string[] = [];
     for (const batch of batches) {
       const results = await Promise.allSettled(batch.map(async (item) => {
-        const r = await uploadSingleFile(item, promptId);
+        const r = await uploadSingleFile(item, promptId, matrixId);
         if (!r.skipped) { totalUploaded++; setUploadProgress(Math.round((totalUploaded / validFiles.length) * 100)); }
         return r;
       }));
@@ -218,7 +228,7 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
     setUploadProgress(100); setUploadPhase("processing");
     if (allAudioIds.length) {
       toast.info(`Procesando ${allAudioIds.length} grabaciones en segundo plano...`);
-      processCallsBatch(allAudioIds, promptId);
+      processCallsBatch(allAudioIds, promptId, matrixId);
     }
     setUploadPhase("done");
     toast.success(`${allAudioIds.length} archivo(s) subido(s)`);
@@ -233,7 +243,7 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
 
   const handleClose = () => {
     if (isRunning) return;
-    setFiles([]); setStep("select"); setSelectedPromptId("default"); setShowDraftForm(false); setDraftName(""); setDraftInstructions(""); setUploadPhase("idle"); onOpenChange(false);
+    setFiles([]); setStep("select"); setSelectedPromptId("default"); setSelectedMatrixId("default"); setShowDraftForm(false); setDraftName(""); setDraftInstructions(""); setUploadPhase("idle"); onOpenChange(false);
   };
 
   return (
@@ -246,7 +256,9 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
             </div>
             Subir Llamadas
           </DialogTitle>
-          <DialogDescription>Selecciona un prompt de análisis y arrastra o selecciona archivos de audio.</DialogDescription>
+          <DialogDescription>
+            Configura el prompt de análisis y la matriz de calidad para evaluar las grabaciones.
+          </DialogDescription>
         </DialogHeader>
 
         {!canUpload && (
@@ -261,71 +273,118 @@ export function AudioUploadDialog({ open, onOpenChange, onUploadComplete }: Prop
           </div>
         )}
 
-        {/* Prompt selection */}
-        <div className="space-y-3">
-          <label className="text-sm font-semibold text-foreground flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-accent" />
-            Prompt de análisis *
-          </label>
-          <Select value={selectedPromptId} onValueChange={(v) => { setSelectedPromptId(v); if (v !== "new") setShowDraftForm(false); }}>
-            <SelectTrigger className="h-11 text-sm">
-              <SelectValue placeholder="Seleccionar prompt..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">
-                <span className="flex items-center gap-2">Análisis predeterminado</span>
-              </SelectItem>
-              {prompts?.filter(p => p.status === "active").map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}{p.category ? ` (${p.category})` : ""}
+        {/* Dual Selection: Prompt + Matriz de Calidad */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border border-border/70 bg-muted/20">
+          {/* Prompt selection */}
+          <div className="space-y-2.5">
+            <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Prompt de análisis *
+            </label>
+            <Select value={selectedPromptId} onValueChange={(v) => { setSelectedPromptId(v); if (v !== "new") setShowDraftForm(false); }}>
+              <SelectTrigger className="h-11 text-sm bg-background">
+                <SelectValue placeholder="Seleccionar prompt..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">
+                  <span className="flex items-center gap-2 font-medium">Análisis predeterminado</span>
                 </SelectItem>
-              ))}
-              {prompts?.filter(p => p.status === "draft").length ? (
-                <>
-                  <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Borradores</div>
-                  {prompts?.filter(p => p.status === "draft").map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2">{p.name} <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">borrador</span></span>
-                    </SelectItem>
-                  ))}
-                </>
-              ) : null}
-            </SelectContent>
-          </Select>
+                {prompts?.filter(p => p.status === "active").map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}{p.category ? ` (${p.category})` : ""}
+                  </SelectItem>
+                ))}
+                {prompts?.filter(p => p.status === "draft").length ? (
+                  <>
+                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Borradores</div>
+                    {prompts?.filter(p => p.status === "draft").map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="flex items-center gap-2">{p.name} <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">borrador</span></span>
+                      </SelectItem>
+                    ))}
+                  </>
+                ) : null}
+              </SelectContent>
+            </Select>
 
-          {!showDraftForm && (
-            <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => { setShowDraftForm(true); setSelectedPromptId("new"); }}>
-              <FilePlus className="w-3.5 h-3.5" /> Crear prompt borrador
-            </Button>
-          )}
+            {!showDraftForm && (
+              <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs w-full sm:w-auto" onClick={() => { setShowDraftForm(true); setSelectedPromptId("new"); }}>
+                <FilePlus className="w-3.5 h-3.5" /> Crear prompt borrador
+              </Button>
+            )}
 
-          {showDraftForm && (
-            <div className="border border-border rounded-lg p-4 space-y-3 bg-secondary/30">
-              <p className="text-xs font-semibold text-foreground">Nuevo prompt borrador</p>
-              <Input
-                placeholder="Nombre del prompt"
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                className="text-sm"
-              />
-              <Textarea
-                placeholder="Instrucciones de análisis (opcional — se usará un prompt genérico si se deja vacío)"
-                value={draftInstructions}
-                onChange={(e) => setDraftInstructions(e.target.value)}
-                rows={3}
-                className="text-sm resize-none"
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={saveDraftPrompt} disabled={!draftName.trim() || savingDraft} className="gap-1.5">
-                  {savingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  Guardar borrador
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => { setShowDraftForm(false); setSelectedPromptId("default"); }}>
-                  Cancelar
-                </Button>
+            {showDraftForm && (
+              <div className="border border-border rounded-lg p-3 space-y-2.5 bg-background/80">
+                <p className="text-xs font-semibold text-foreground">Nuevo prompt borrador</p>
+                <Input
+                  placeholder="Nombre del prompt"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  className="text-xs h-9"
+                />
+                <Textarea
+                  placeholder="Instrucciones de análisis (opcional)..."
+                  value={draftInstructions}
+                  onChange={(e) => setDraftInstructions(e.target.value)}
+                  rows={2}
+                  className="text-xs resize-none"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={saveDraftPrompt} disabled={!draftName.trim() || savingDraft} className="gap-1.5 h-8 text-xs">
+                    {savingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    Guardar
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setShowDraftForm(false); setSelectedPromptId("default"); }} className="h-8 text-xs">
+                    Cancelar
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Matriz de Calidad selection */}
+          <div className="space-y-2.5">
+            <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Layers className="w-4 h-4 text-primary" />
+              Matriz de Calidad para evaluación
+            </label>
+            <Select value={selectedMatrixId} onValueChange={(v) => setSelectedMatrixId(v)}>
+              <SelectTrigger className="h-11 text-sm bg-background">
+                <SelectValue placeholder="Seleccionar matriz de calidad..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">
+                  <span className="flex items-center gap-2 font-medium">
+                    Predeterminada {qualityMatrices.find(m => m.is_default) ? `(${qualityMatrices.find(m => m.is_default)?.label})` : ""}
+                  </span>
+                </SelectItem>
+                {qualityMatrices.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{m.label || `Matriz v${m.version}`}</span>
+                      {m.macroproceso && (
+                        <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded capitalize">
+                          {m.macroproceso}
+                        </span>
+                      )}
+                      {m.is_default && (
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-0.5">
+                          <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Default
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {selectedMatrixId === "default"
+                ? qualityMatrices.find(m => m.is_default)
+                  ? `Se evaluará con la matriz predeterminada de la cuenta: "${qualityMatrices.find(m => m.is_default)?.label}".`
+                  : "Se evaluará automáticamente con la matriz activa por defecto."
+                : `Se evaluará contra: "${qualityMatrices.find(m => m.id === selectedMatrixId)?.label || ''}".`}
+            </p>
+          </div>
         </div>
 
         {/* File selection / Upload area */}

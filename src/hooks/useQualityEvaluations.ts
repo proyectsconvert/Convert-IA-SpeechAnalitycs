@@ -65,18 +65,35 @@ export function useEvaluationsForSource(opts: { audioFileId?: string | null; wha
 export function useEvaluateInteractions(accountId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (opts?: { forceAll?: boolean }) => {
+    mutationFn: async (opts?: { forceAll?: boolean; matrixVersionId?: string }) => {
       if (!accountId) throw new Error("No account");
 
-      // 1. Obtener la versión activa
-      const { data: activeVersion, error: vErr } = await supabase
-        .from("quality_matrix_versions")
-        .select("id")
-        .eq("account_id", accountId)
-        .eq("is_active", true)
-        .maybeSingle();
+      // 1. Obtener la versión seleccionada o por defecto
+      let versionId = opts?.matrixVersionId;
+      if (!versionId) {
+        const { data: defaultVersion } = await supabase
+          .from("quality_matrix_versions")
+          .select("id")
+          .eq("account_id", accountId)
+          .eq("is_default", true)
+          .maybeSingle();
 
-      if (vErr || !activeVersion) {
+        if (defaultVersion) {
+          versionId = defaultVersion.id;
+        } else {
+          const { data: activeVersion } = await supabase
+            .from("quality_matrix_versions")
+            .select("id")
+            .eq("account_id", accountId)
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (activeVersion) versionId = activeVersion.id;
+        }
+      }
+
+      if (!versionId) {
         throw new Error("No hay una matriz de calidad activa en esta cuenta. Por favor crea o activa una matriz primero en la pestaña 'Editor de Matriz'.");
       }
 
@@ -141,6 +158,7 @@ export function useEvaluateInteractions(accountId: string | undefined) {
               audio_file_id: call.id,
               agent_name: agentName,
               conversation_text: transcriptText,
+              quality_matrix_id: versionId,
             },
           });
           count++;
@@ -160,6 +178,7 @@ export function useEvaluateInteractions(accountId: string | undefined) {
               whatsapp_conversation_id: wa.id,
               agent_name: wa.agente_principal || null,
               conversation_text: wa.transcript_summary,
+              quality_matrix_id: versionId,
             },
           });
           count++;

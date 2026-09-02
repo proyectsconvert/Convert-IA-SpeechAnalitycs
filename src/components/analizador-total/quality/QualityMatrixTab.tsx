@@ -12,8 +12,8 @@ export function QualityMatrixTab({ rawData }: Props) {
   return (
     <Tabs defaultValue="analysis" className="space-y-4">
       <TabsList className="bg-muted/50">
-        <TabsTrigger value="analysis" className="text-xs"><BarChart3 className="w-3.5 h-3.5 mr-1.5" />Análisis Matriz de Calidad</TabsTrigger>
-        <TabsTrigger value="editor" className="text-xs"><Settings className="w-3.5 h-3.5 mr-1.5" />Edición Matriz de Calidad</TabsTrigger>
+        <TabsTrigger value="analysis" className="text-xs"><BarChart3 className="w-3.5 h-3.5 mr-1.5" />Análisis de Calidad</TabsTrigger>
+        <TabsTrigger value="editor" className="text-xs"><Settings className="w-3.5 h-3.5 mr-1.5" />Configuración de Matriz</TabsTrigger>
       </TabsList>
       <TabsContent value="analysis"><QualityMatrixAnalysis rawData={rawData} /></TabsContent>
       <TabsContent value="editor"><QualityMatrixEditor /></TabsContent>

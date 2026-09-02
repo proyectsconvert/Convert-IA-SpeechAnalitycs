@@ -589,19 +589,19 @@ export default function AnalizadorTotalPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col space-y-5 min-h-0">
         <TabsList className="flex w-fit bg-muted/50 p-1 rounded-lg">
           <TabsTrigger value="data" className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium">
-            <TableIcon className="w-3.5 h-3.5" /> Datos Maestros
+            <TableIcon className="w-3.5 h-3.5" /> Explorador de Datos
           </TabsTrigger>
           <TabsTrigger value="dashboards" className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium">
-            <LayoutDashboard className="w-3.5 h-3.5" /> Centro Visual
+            <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard General
           </TabsTrigger>
           <TabsTrigger value="agents" className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium">
-            <Users className="w-3.5 h-3.5" /> Centro Visual Agentes
+            <Users className="w-3.5 h-3.5" /> Desempeño de Agentes
           </TabsTrigger>
           <TabsTrigger value="presentation" className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium">
-            <Presentation className="w-3.5 h-3.5" /> Reporte IA
+            <Presentation className="w-3.5 h-3.5" /> Reportes IA
           </TabsTrigger>
           <TabsTrigger value="quality" className="flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-medium">
-            <ClipboardCheck className="w-3.5 h-3.5" /> Matriz de Calidad
+            <ClipboardCheck className="w-3.5 h-3.5" /> Evaluación de Calidad
           </TabsTrigger>
         </TabsList>
 

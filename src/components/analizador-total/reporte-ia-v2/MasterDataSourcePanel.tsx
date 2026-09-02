@@ -40,7 +40,7 @@ export function MasterDataSourcePanel({
             <div className="flex items-center gap-2">
               <Database className="h-4 w-4 text-primary" />
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Datos Maestros · dataset filtrado
+                Explorador de Datos · dataset filtrado
               </span>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
@@ -55,7 +55,7 @@ export function MasterDataSourcePanel({
             onClick={onGoToMasterData}
             className="text-xs font-medium text-primary underline-offset-4 hover:underline"
           >
-            Ir a Datos Maestros para ajustar filtros
+            Ir a Explorador de Datos para ajustar filtros
           </button>
         </div>
 

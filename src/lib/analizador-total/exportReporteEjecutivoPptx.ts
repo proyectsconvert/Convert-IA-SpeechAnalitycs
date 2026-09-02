@@ -59,7 +59,7 @@ export async function exportReporteEjecutivoPptx(
   });
   cover.addText(
     `${meta.rowsAnalyzed.toLocaleString("es")} interacciones · ${
-      meta.source.mode === "upload" ? meta.source.fileName ?? "Excel subido" : "Datos Maestros"
+      meta.source.mode === "upload" ? meta.source.fileName ?? "Excel subido" : "Explorador de Datos"
     }`,
     { x: 0.5, y: 6.4, w: PAGE_W - 1, h: 0.4, fontSize: 12, color: "94A3B8" },
   );

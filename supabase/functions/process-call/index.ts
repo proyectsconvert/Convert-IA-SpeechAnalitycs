@@ -51,6 +51,7 @@ serve(async (req) => {
     audioFileId = body.audio_file_id || body.callId;
     accountId = body.account_id;
     const promptId = body.prompt_id;
+    const qualityMatrixId = body.quality_matrix_id;
     const summaryPrompt = body.summaryPrompt;
     const feedbackPrompt = body.feedbackPrompt;
 
@@ -58,6 +59,7 @@ serve(async (req) => {
       audioFileId,
       accountId,
       promptId: promptId ? 'provided' : 'not provided',
+      qualityMatrixId: qualityMatrixId ? 'provided' : 'not provided',
       summaryPrompt: summaryPrompt ? 'provided' : 'not provided',
       feedbackPrompt: feedbackPrompt ? 'provided' : 'not provided',
     });
@@ -379,7 +381,12 @@ serve(async (req) => {
     // Quality matrix evaluation (only affects NEW analyses)
     try {
       const agentName = (audioFile?.metadata as any)?.agent || (audioFile?.metadata as any)?.agent_name || null;
-      console.log('📊 Evaluando matriz de calidad para audioFileId:', audioFileId);
+      console.log('📊 Evaluando matriz de calidad para audioFileId:', audioFileId, 'qualityMatrixId:', qualityMatrixId);
+      
+      if (qualityMatrixId) {
+        await supabase.from('audio_files').update({ quality_matrix_id: qualityMatrixId }).eq('id', audioFileId);
+      }
+
       const evalRes = await fetch(`${supabaseUrl}/functions/v1/evaluate-quality`, {
         method: 'POST',
         headers: {
@@ -393,6 +400,7 @@ serve(async (req) => {
           audio_file_id: audioFileId,
           agent_name: agentName,
           conversation_text: transcription || '',
+          quality_matrix_id: qualityMatrixId || audioFile?.quality_matrix_id || null,
         }),
       });
       if (!evalRes.ok) {

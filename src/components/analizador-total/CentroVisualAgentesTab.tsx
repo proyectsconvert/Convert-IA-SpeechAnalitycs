@@ -326,7 +326,7 @@ export function CentroVisualAgentesTab({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" /> Centro Visual Agentes
+              <Users className="h-4 w-4 text-primary" /> Desempeño de Agentes
             </h2>
             <Badge variant="outline" className="text-[11px] font-medium bg-muted/30">
               {mpConfig.emoji} {mpConfig.label}

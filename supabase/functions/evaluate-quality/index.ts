@@ -14,6 +14,7 @@ interface Payload {
   whatsapp_conversation_id?: string;
   agent_name?: string | null;
   conversation_text: string;
+  quality_matrix_id?: string | null;
 }
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
@@ -35,15 +36,46 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // 1. Versión activa de la matriz de la cuenta
-    const { data: version } = await supabase
-      .from("quality_matrix_versions")
-      .select("id")
-      .eq("account_id", body.account_id)
-      .eq("is_active", true)
-      .maybeSingle();
+    // 1. Obtener la versión de matriz a evaluar:
+    // Si viene quality_matrix_id explícito, usarlo; si no, buscar la matriz is_default de la cuenta,
+    // y fallback a is_active.
+    let versionId: string | null = null;
+    if (body.quality_matrix_id) {
+      const { data: explicitVersion } = await supabase
+        .from("quality_matrix_versions")
+        .select("id")
+        .eq("id", body.quality_matrix_id)
+        .eq("account_id", body.account_id)
+        .maybeSingle();
+      if (explicitVersion) versionId = explicitVersion.id;
+    }
 
-    if (!version) {
+    if (!versionId) {
+      const { data: defaultVersion } = await supabase
+        .from("quality_matrix_versions")
+        .select("id")
+        .eq("account_id", body.account_id)
+        .eq("is_default", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (defaultVersion) {
+        versionId = defaultVersion.id;
+      } else {
+        const { data: activeVersion } = await supabase
+          .from("quality_matrix_versions")
+          .select("id")
+          .eq("account_id", body.account_id)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (activeVersion) versionId = activeVersion.id;
+      }
+    }
+
+    if (!versionId) {
       return new Response(JSON.stringify({ skipped: "no_active_matrix" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -53,7 +85,7 @@ Deno.serve(async (req) => {
     const { data: sections } = await supabase
       .from("quality_matrix_sections")
       .select("id,name,kind,sort_order, quality_matrix_items(id,attribute,sub_attribute,description,max_score,affectation,is_active,sort_order)")
-      .eq("version_id", version.id)
+      .eq("version_id", versionId)
       .order("sort_order", { ascending: true });
 
     const itemList: any[] = [];
@@ -193,7 +225,7 @@ Devuelve SOLO este JSON:
       .from("quality_evaluations")
       .insert({
         account_id: body.account_id,
-        matrix_version_id: version.id,
+        matrix_version_id: versionId,
         source_type: body.source_type,
         audio_file_id: body.source_type === "call" ? body.audio_file_id : null,
         whatsapp_conversation_id: body.source_type === "whatsapp" ? body.whatsapp_conversation_id : null,

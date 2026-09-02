@@ -11,7 +11,7 @@ interface Props {
 
 export function DataSourceSelector({ value, onChange }: Props) {
   const items: { mode: ReporteIaSourceMode; label: string; icon: typeof Database; hint: string }[] = [
-    { mode: "master", label: "Desde Datos Maestros", icon: Database, hint: "Usa el dataset filtrado actual" },
+    { mode: "master", label: "Desde Explorador de Datos", icon: Database, hint: "Usa el dataset filtrado actual" },
     { mode: "upload", label: "Subir Excel", icon: Upload, hint: "Archivo .xlsx con las 26 columnas" },
   ];
 

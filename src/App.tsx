@@ -44,6 +44,8 @@ import PublicSharedDashboardPage from "./pages/PublicSharedDashboardPage";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 
+import { AudioUploadModalProvider } from "@/contexts/AudioUploadModalContext";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -80,49 +82,57 @@ const App = () => (
         <AuthProvider>
           <AccountProvider>
             <WhatsappUploadProvider>
-              <Routes>
-                <Route path="/v/:token" element={<PublicSharedPresentationPage />} />
-                <Route path="/d/:token" element={<PublicSharedDashboardPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/select-account" element={<AccountSelectionPage />} />
-                <Route path="/" element={<ProtectedAppRoute><DashboardPage /></ProtectedAppRoute>} />
-                <Route path="/biblioteca" element={<ProtectedAppRoute><BibliotecaPage /></ProtectedAppRoute>} />
-                <Route path="/transcripciones" element={<ProtectedAppRoute><TranscripcionesPage /></ProtectedAppRoute>} />
-                <Route
-                  path="/analiticas"
-                  element={
-                    <ProtectedAppRoute>
-                      <AnaliticasFiltersProvider>
-                        <AnaliticasLayout />
-                      </AnaliticasFiltersProvider>
-                    </ProtectedAppRoute>
-                  }
-                >
-                  <Route index element={<AnaliticasResumenPage />} />
-                  <Route path="llamadas" element={<AnaliticasLlamadasPage />} />
-                  <Route path="whatsapp" element={<AnaliticasWhatsappPage />} />
-                </Route>
-                <Route path="/analizador-total" element={<ProtectedAppRoute><AnalizadorTotalPage /></ProtectedAppRoute>} />
-                <Route path="/extracciones" element={<ProtectedAppRoute><ExtraccionesPage /></ProtectedAppRoute>} />
-                <Route path="/prompts" element={<ProtectedAppRoute><PromptsPage /></ProtectedAppRoute>} />
-                <Route path="/consulta-ia" element={<ProtectedAppRoute><ConsultaIAPage /></ProtectedAppRoute>} />
-                <Route path="/cuentas" element={<ProtectedAppRoute><CuentasPage /></ProtectedAppRoute>} />
-                <Route path="/usuarios" element={<ProtectedAppRoute><UsuariosPage /></ProtectedAppRoute>} />
-                <Route path="/roles" element={<ProtectedAppRoute><RolesPage /></ProtectedAppRoute>} />
-                <Route path="/limites" element={<ProtectedAppRoute><LimitesPage /></ProtectedAppRoute>} />
-                <Route path="/facturacion" element={<ProtectedAppRoute><FacturacionPage /></ProtectedAppRoute>} />
-                <Route path="/auditoria" element={<ProtectedAppRoute><AuditoriaPage /></ProtectedAppRoute>} />
-                <Route path="/soporte" element={<ProtectedAppRoute><SoportePage /></ProtectedAppRoute>} />
-                <Route path="/conexion" element={<ProtectedAppRoute><ConexionPage /></ProtectedAppRoute>} />
-                <Route path="/configuracion" element={<ProtectedAppRoute><ConfiguracionPage /></ProtectedAppRoute>} />
-                <Route path="/modelos-transcripcion" element={<ProtectedAppRoute><ModelosTranscripcionPage /></ProtectedAppRoute>} />
-                <Route path="/validacion-modelos" element={<ProtectedAppRoute><ValidacionModelosPage /></ProtectedAppRoute>} />
-                <Route path="/analytics-whatsapp" element={<ProtectedAppRoute><AnalyticsWhatsappPage /></ProtectedAppRoute>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <AudioUploadModalProvider>
+                <Routes>
+                  <Route path="/v/:token" element={<PublicSharedPresentationPage />} />
+                  <Route path="/d/:token" element={<PublicSharedDashboardPage />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/signup" element={<SignupPage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                  <Route path="/select-account" element={<AccountSelectionPage />} />
+                  <Route path="/" element={<ProtectedAppRoute><DashboardPage /></ProtectedAppRoute>} />
+                  <Route path="/biblioteca" element={<ProtectedAppRoute><BibliotecaPage /></ProtectedAppRoute>} />
+                  <Route path="/transcripciones" element={<ProtectedAppRoute><TranscripcionesPage /></ProtectedAppRoute>} />
+                  <Route
+                    path="/analiticas"
+                    element={
+                      <ProtectedAppRoute>
+                        <AnaliticasFiltersProvider>
+                          <AnaliticasLayout />
+                        </AnaliticasFiltersProvider>
+                      </ProtectedAppRoute>
+                    }
+                  />
+                  <Route
+                    path="/analiticas/*"
+                    element={
+                      <ProtectedAppRoute>
+                        <AnaliticasFiltersProvider>
+                          <AnaliticasLayout />
+                        </AnaliticasFiltersProvider>
+                      </ProtectedAppRoute>
+                    }
+                  />
+                  <Route path="/analizador-total" element={<ProtectedAppRoute><AnalizadorTotalPage /></ProtectedAppRoute>} />
+                  <Route path="/extracciones" element={<ProtectedAppRoute><ExtraccionesPage /></ProtectedAppRoute>} />
+                  <Route path="/prompts" element={<ProtectedAppRoute><PromptsPage /></ProtectedAppRoute>} />
+                  <Route path="/consulta-ia" element={<ProtectedAppRoute><ConsultaIAPage /></ProtectedAppRoute>} />
+                  <Route path="/cuentas" element={<ProtectedAppRoute><CuentasPage /></ProtectedAppRoute>} />
+                  <Route path="/usuarios" element={<ProtectedAppRoute><UsuariosPage /></ProtectedAppRoute>} />
+                  <Route path="/roles" element={<ProtectedAppRoute><RolesPage /></ProtectedAppRoute>} />
+                  <Route path="/limites" element={<ProtectedAppRoute><LimitesPage /></ProtectedAppRoute>} />
+                  <Route path="/facturacion" element={<ProtectedAppRoute><FacturacionPage /></ProtectedAppRoute>} />
+                  <Route path="/auditoria" element={<ProtectedAppRoute><AuditoriaPage /></ProtectedAppRoute>} />
+                  <Route path="/soporte" element={<ProtectedAppRoute><SoportePage /></ProtectedAppRoute>} />
+                  <Route path="/conexion" element={<ProtectedAppRoute><ConexionPage /></ProtectedAppRoute>} />
+                  <Route path="/configuracion" element={<ProtectedAppRoute><ConfiguracionPage /></ProtectedAppRoute>} />
+                  <Route path="/modelos-transcripcion" element={<ProtectedAppRoute><ModelosTranscripcionPage /></ProtectedAppRoute>} />
+                  <Route path="/validacion-modelos" element={<ProtectedAppRoute><ValidacionModelosPage /></ProtectedAppRoute>} />
+                  <Route path="/analytics-whatsapp" element={<ProtectedAppRoute><AnalyticsWhatsappPage /></ProtectedAppRoute>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </AudioUploadModalProvider>
             </WhatsappUploadProvider>
           </AccountProvider>
         </AuthProvider>

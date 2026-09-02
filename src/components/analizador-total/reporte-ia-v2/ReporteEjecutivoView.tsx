@@ -113,7 +113,7 @@ export const ReporteEjecutivoView = forwardRef<HTMLDivElement, Props>(function R
             <span className="font-medium text-foreground">
               {meta.source.mode === "upload"
                 ? `${meta.source.fileName ?? "archivo.xlsx"}`
-                : "Datos Maestros · filtrado"}
+                : "Explorador de Datos · filtrado"}
             </span>
             <span>·</span>
             <span>{meta.rowsAnalyzed.toLocaleString("es")} interacciones</span>
