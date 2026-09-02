@@ -20,8 +20,8 @@ interface AccountContextType {
   setCurrentAccount: (account: UserAccountRole) => void;
   loading: boolean;
   refreshAccounts: () => Promise<void>;
-  createAccount: (name: string, slug?: string, macroproceso?: string) => Promise<boolean>;
-  updateAccount: (accountId: string, updates: { name?: string; macroproceso?: string }) => Promise<boolean>;
+  createAccount: (name: string, slug?: string, macroproceso?: string, plan?: string, max_users?: number, max_processing_minutes?: number) => Promise<boolean>;
+  updateAccount: (accountId: string, updates: { name?: string; macroproceso?: string; plan?: string; max_users?: number; max_processing_minutes?: number }) => Promise<boolean>;
   updateAccountStatus: (accountId: string, status: "active" | "inactive" | "suspended") => Promise<boolean>;
 }
 
@@ -134,18 +134,41 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     await fetchAccounts();
   }, [fetchAccounts]);
 
-  const createAccount = useCallback(async (name: string, slug?: string, macroproceso: string = "ventas"): Promise<boolean> => {
+  const createAccount = useCallback(async (
+    name: string,
+    slug?: string,
+    macroproceso: string = "ventas",
+    plan: string = "starter",
+    max_users: number = 10,
+    max_processing_minutes: number = 1000
+  ): Promise<boolean> => {
     try {
       const finalSlug = slug || name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-      const { error } = await supabase.from("accounts").insert({
+      const { data: newAcc, error } = await supabase.from("accounts").insert({
         name,
         slug: finalSlug,
         status: "active",
         macroproceso,
+        plan,
+        max_users: Number(max_users) || 5,
+        max_processing_minutes: Number(max_processing_minutes) || 1000,
         branding: { macroproceso },
         created_by: user?.id,
-      } as any);
+      } as any).select().single();
       if (error) throw error;
+
+      if (newAcc?.id) {
+        await supabase.from("account_limits").upsert({
+          account_id: newAcc.id,
+          max_transcription_hours: Math.max(10, Math.round((Number(max_processing_minutes) || 1000) / 60)),
+          max_chatbot_queries: 500,
+          max_whatsapp_conversations: 1000,
+          max_presentations: 50,
+          max_storage_gb: 10,
+          additional_hours: 0,
+        }, { onConflict: "account_id" });
+      }
+
       toast.success("Cuenta creada exitosamente");
       await fetchAccounts();
       return true;
@@ -155,16 +178,39 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id, fetchAccounts]);
 
-  const updateAccount = useCallback(async (accountId: string, updates: { name?: string; macroproceso?: string }): Promise<boolean> => {
+  const updateAccount = useCallback(async (
+    accountId: string,
+    updates: {
+      name?: string;
+      macroproceso?: string;
+      plan?: string;
+      max_users?: number;
+      max_processing_minutes?: number;
+    }
+  ): Promise<boolean> => {
     try {
       const patch: Record<string, any> = {};
-      if (updates.name) patch.name = updates.name;
-      if (updates.macroproceso) {
+      if (updates.name !== undefined) patch.name = updates.name;
+      if (updates.macroproceso !== undefined) {
         patch.macroproceso = updates.macroproceso;
         patch.branding = { macroproceso: updates.macroproceso };
       }
+      if (updates.plan !== undefined) patch.plan = updates.plan;
+      if (updates.max_users !== undefined) patch.max_users = Number(updates.max_users) || 5;
+      if (updates.max_processing_minutes !== undefined) patch.max_processing_minutes = Number(updates.max_processing_minutes) || 1000;
+
       const { error } = await supabase.from("accounts").update(patch).eq("id", accountId);
       if (error) throw error;
+
+      if (updates.max_processing_minutes !== undefined) {
+        const hours = Math.max(1, Math.round((Number(updates.max_processing_minutes) || 1000) / 60));
+        await supabase.from("account_limits").upsert({
+          account_id: accountId,
+          max_transcription_hours: hours,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "account_id" });
+      }
+
       toast.success("Cuenta actualizada");
       await fetchAccounts();
       return true;

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, Edit, Building2, Trash2, Power, PowerOff, Lock as LockIcon, Layers } from "lucide-react";
+import { useAccount } from "@/contexts/AccountContext";
+import { Plus, Minus, Edit, Building2, Trash2, Power, PowerOff, Lock as LockIcon, Layers, Users, Clock } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { MACROPROCESO_LIST, getMacroprocesoConfig } from "@/lib/analizador-total
 
 export default function CuentasPage() {
   const { user } = useAuth();
+  const { refreshAccounts } = useAccount();
   const queryClient = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [editAccount, setEditAccount] = useState<any>(null);
@@ -28,6 +30,9 @@ export default function CuentasPage() {
   const [confirmName, setConfirmName] = useState("");
   const [name, setName] = useState("");
   const [macroproceso, setMacroproceso] = useState<string>("ventas");
+  const [plan, setPlan] = useState<string>("starter");
+  const [maxUsers, setMaxUsers] = useState<number>(10);
+  const [maxProcessingMinutes, setMaxProcessingMinutes] = useState<number>(1000);
 
   const { data: accounts, isLoading } = useQuery({
     queryKey: ["all-accounts"],
@@ -35,6 +40,8 @@ export default function CuentasPage() {
       const { data } = await supabase.from("accounts").select("*").order("created_at", { ascending: false });
       return data || [];
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const { data: stats } = useQuery({
@@ -50,26 +57,52 @@ export default function CuentasPage() {
       return result;
     },
     enabled: !!accounts?.length,
+    staleTime: 0,
   });
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-      const { error } = await supabase.from("accounts").insert({
+      const { data: newAcc, error } = await supabase.from("accounts").insert({
         name,
         slug,
         macroproceso,
+        plan,
+        max_users: Number(maxUsers) || 5,
+        max_processing_minutes: Number(maxProcessingMinutes) || 1000,
         branding: { macroproceso },
         created_by: user?.id,
-      } as any);
+      } as any).select().single();
       if (error) throw error;
+
+      if (newAcc?.id) {
+        await supabase.from("account_limits").upsert({
+          account_id: newAcc.id,
+          max_transcription_hours: Math.max(10, Math.round((Number(maxProcessingMinutes) || 1000) / 60)),
+          max_chatbot_queries: 500,
+          max_whatsapp_conversations: 1000,
+          max_presentations: 50,
+          max_storage_gb: 10,
+          additional_hours: 0,
+        }, { onConflict: "account_id" });
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-accounts"] });
-      toast.success("Cuenta creada");
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["all-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounts-with-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["account-data"] }),
+        queryClient.invalidateQueries({ queryKey: ["account-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounts-for-metrics"] }),
+        refreshAccounts(),
+      ]);
+      toast.success("Cuenta creada exitosamente");
       setShowNew(false);
       setName("");
       setMacroproceso("ventas");
+      setPlan("starter");
+      setMaxUsers(10);
+      setMaxProcessingMinutes(1000);
     },
     onError: (err: any) => toast.error("Error: " + err.message),
   });
@@ -80,16 +113,36 @@ export default function CuentasPage() {
       const { error } = await supabase.from("accounts").update({
         name,
         macroproceso,
+        plan,
+        max_users: Number(maxUsers) || 5,
+        max_processing_minutes: Number(maxProcessingMinutes) || 1000,
         branding: { ...(editAccount.branding || {}), macroproceso },
       } as any).eq("id", editAccount.id);
       if (error) throw error;
+
+      const hours = Math.max(1, Math.round((Number(maxProcessingMinutes) || 1000) / 60));
+      await supabase.from("account_limits").upsert({
+        account_id: editAccount.id,
+        max_transcription_hours: hours,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "account_id" });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-accounts"] });
-      toast.success("Cuenta actualizada");
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["all-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounts-with-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["account-data"] }),
+        queryClient.invalidateQueries({ queryKey: ["account-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounts-for-metrics"] }),
+        refreshAccounts(),
+      ]);
+      toast.success("Cuenta actualizada exitosamente");
       setEditAccount(null);
       setName("");
       setMacroproceso("ventas");
+      setPlan("starter");
+      setMaxUsers(10);
+      setMaxProcessingMinutes(1000);
     },
     onError: (err: any) => toast.error("Error: " + err.message),
   });
@@ -139,6 +192,9 @@ export default function CuentasPage() {
     setName(account.name);
     const mp = (account as any).macroproceso || account.branding?.macroproceso || "ventas";
     setMacroproceso(mp);
+    setPlan(account.plan || "starter");
+    setMaxUsers(account.max_users ?? 5);
+    setMaxProcessingMinutes(account.max_processing_minutes ?? 1000);
     setEditAccount(account);
   };
 
@@ -149,7 +205,14 @@ export default function CuentasPage() {
           <h1 className="text-2xl font-bold text-foreground">Cuentas</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Gestión de organizaciones, planes y macroprocesos de operación.</p>
         </div>
-        <Button onClick={() => { setName(""); setMacroproceso("ventas"); setShowNew(true); }}>
+        <Button onClick={() => {
+          setName("");
+          setMacroproceso("ventas");
+          setPlan("starter");
+          setMaxUsers(10);
+          setMaxProcessingMinutes(1000);
+          setShowNew(true);
+        }}>
           <Plus className="w-4 h-4 mr-1" /> Nueva Cuenta
         </Button>
       </div>
@@ -176,7 +239,9 @@ export default function CuentasPage() {
                   </div>
                 </div>
                 <h3 className="font-semibold text-foreground text-base">{a.name}</h3>
-                <p className="text-xs text-muted-foreground mb-3">Plan {a.plan} • {a.max_users} usuarios máx</p>
+                <p className="text-xs text-muted-foreground mb-3 capitalize">
+                  Plan <strong className="text-foreground">{a.plan}</strong> • <strong className="text-foreground">{a.max_users}</strong> usuarios máx
+                </p>
                 <div className="grid grid-cols-3 gap-2 text-xs mb-4">
                   <div className="bg-secondary/60 rounded-lg p-2 text-center">
                     <p className="font-bold text-foreground">{stats?.[a.id]?.users ?? "—"}</p>
@@ -210,11 +275,11 @@ export default function CuentasPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={showNew || !!editAccount} onOpenChange={(open) => { if (!open) { setShowNew(false); setEditAccount(null); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editAccount ? "Editar Cuenta" : "Nueva Cuenta"}</DialogTitle>
+            <DialogTitle>{editAccount ? "Editar Cuenta y Límites" : "Nueva Cuenta y Configuración"}</DialogTitle>
             <DialogDescription>
-              {editAccount ? "Modifica el nombre y tipo de operación de la cuenta." : "Crea una nueva cuenta y define su tipo de operación."}
+              {editAccount ? "Modifica los límites de usuarios, plan, cuota de procesamiento y tipo de operación." : "Crea una nueva cuenta y define su capacidad de usuarios y operación."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -246,6 +311,75 @@ export default function CuentasPage() {
               <p className="text-[10px] text-muted-foreground mt-1.5">
                 Adapta automáticamente los KPIs, gráficos, clasificaciones y análisis de IA según el tipo de operación.
               </p>
+            </div>
+
+            {/* Fila: Plan y Usuarios Permitidos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-border/50">
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block text-foreground">Plan de Suscripción *</label>
+                <Select value={plan} onValueChange={(v) => setPlan(v)}>
+                  <SelectTrigger className="h-10 text-xs capitalize">
+                    <SelectValue placeholder="Selecciona el plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="starter" className="text-xs">Starter (Básico)</SelectItem>
+                    <SelectItem value="pro" className="text-xs">Pro (Avanzado)</SelectItem>
+                    <SelectItem value="enterprise" className="text-xs">Enterprise (Corporativo)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold mb-1.5 flex items-center justify-between text-foreground">
+                  <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-primary" /> Usuarios Permitidos *</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 flex-shrink-0"
+                    onClick={() => setMaxUsers((prev) => Math.max(1, prev - 1))}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={maxUsers}
+                    onChange={(e) => setMaxUsers(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="h-10 text-xs text-center font-bold"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 flex-shrink-0"
+                    onClick={() => setMaxUsers((prev) => prev + 1)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Minutos Máximos de Procesamiento */}
+            <div className="pt-1">
+              <label className="text-xs font-semibold mb-1.5 flex items-center justify-between text-foreground">
+                <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-primary" /> Minutos de Audio Mensuales</span>
+                <span className="text-[11px] text-muted-foreground font-normal">
+                  ≈ {(maxProcessingMinutes / 60).toFixed(1)} horas/mes
+                </span>
+              </label>
+              <Input
+                type="number"
+                min={100}
+                step={500}
+                value={maxProcessingMinutes}
+                onChange={(e) => setMaxProcessingMinutes(Math.max(100, parseInt(e.target.value) || 1000))}
+                className="h-10 text-xs font-mono"
+                placeholder="Ej: 1000"
+              />
             </div>
           </div>
           <DialogFooter>

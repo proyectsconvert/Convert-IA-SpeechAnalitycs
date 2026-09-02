@@ -53,6 +53,7 @@ export default function LimitesPage() {
 
 function QuickConfig({ accounts }: { accounts: any[] }) {
   const queryClient = useQueryClient();
+  const { refreshAccounts } = useAccount();
   const [limits, setLimits] = useState({ hours: 10, queries: 500, users: 5, whatsapp: 1000, presentations: 50 });
 
   const { data: accountsWithLimits, isLoading } = useQuery({
@@ -72,28 +73,46 @@ function QuickConfig({ accounts }: { accounts: any[] }) {
         };
       });
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const bulkUpdate = useMutation({
     mutationFn: async () => {
+      const parsedUsers = Math.max(1, parseInt(String(limits.users), 10) || 5);
       const updates = (accountsWithLimits || []).map((acc) => ({
         account_id: acc.id,
-        max_transcription_hours: limits.hours,
-        max_chatbot_queries: limits.queries,
-        max_whatsapp_conversations: limits.whatsapp,
-        max_presentations: limits.presentations,
+        max_transcription_hours: Number(limits.hours) || 10,
+        max_chatbot_queries: Number(limits.queries) || 500,
+        max_whatsapp_conversations: Number(limits.whatsapp) || 1000,
+        max_presentations: Number(limits.presentations) || 50,
         max_storage_gb: 10,
         additional_hours: 0,
         updated_at: new Date().toISOString(),
       }));
-      const { error } = await supabase.from("account_limits").upsert(updates, { onConflict: "account_id" });
-      if (error) throw error;
+      const { error: limitErr } = await supabase.from("account_limits").upsert(updates, { onConflict: "account_id" });
+      if (limitErr) throw limitErr;
+
       for (const acc of accountsWithLimits || []) {
-        await supabase.from("accounts").update({ max_users: limits.users }).eq("id", acc.id);
+        const { error: accErr } = await supabase.from("accounts").update({ max_users: parsedUsers }).eq("id", acc.id);
+        if (accErr) throw accErr;
       }
     },
-    onSuccess: () => { toast.success("Límites actualizados"); queryClient.invalidateQueries({ queryKey: ["accounts-with-limits"] }); },
-    onError: () => toast.error("Error al actualizar"),
+    onSuccess: async () => {
+      toast.success("Límites masivos actualizados exitosamente");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["accounts-with-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["all-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["account-data"] }),
+        queryClient.invalidateQueries({ queryKey: ["account-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["all-account-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounts-for-metrics"] }),
+        refreshAccounts(),
+      ]);
+      queryClient.refetchQueries({ queryKey: ["accounts-with-limits"] });
+      queryClient.refetchQueries({ queryKey: ["all-accounts"] });
+    },
+    onError: (err: any) => toast.error("Error al actualizar: " + (err?.message || "No se pudo completar")),
   });
 
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -176,6 +195,7 @@ function QuickConfig({ accounts }: { accounts: any[] }) {
 
 function IndividualConfig({ accounts }: { accounts: any[] }) {
   const queryClient = useQueryClient();
+  const { refreshAccounts } = useAccount();
   const [selectedAccount, setSelectedAccount] = useState("");
   const [form, setForm] = useState({ hours: 10, queries: 500, additionalHours: 0, maxUsers: 5, whatsapp: 1000, presentations: 50 });
 
@@ -186,6 +206,8 @@ function IndividualConfig({ accounts }: { accounts: any[] }) {
       return data;
     },
     enabled: !!selectedAccount,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const { data: accountData } = useQuery({
@@ -195,6 +217,8 @@ function IndividualConfig({ accounts }: { accounts: any[] }) {
       return data;
     },
     enabled: !!selectedAccount,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   useEffect(() => {
@@ -212,22 +236,37 @@ function IndividualConfig({ accounts }: { accounts: any[] }) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const parsedUsers = Math.max(1, parseInt(String(form.maxUsers), 10) || 5);
       const { error: e1 } = await supabase.from("account_limits").upsert({
         account_id: selectedAccount,
-        max_transcription_hours: form.hours,
-        max_chatbot_queries: form.queries,
-        max_whatsapp_conversations: form.whatsapp,
-        max_presentations: form.presentations,
+        max_transcription_hours: Number(form.hours) || 10,
+        max_chatbot_queries: Number(form.queries) || 500,
+        max_whatsapp_conversations: Number(form.whatsapp) || 1000,
+        max_presentations: Number(form.presentations) || 50,
         max_storage_gb: 10,
-        additional_hours: form.additionalHours,
+        additional_hours: Number(form.additionalHours) || 0,
         updated_at: new Date().toISOString(),
       }, { onConflict: "account_id" });
       if (e1) throw e1;
-      const { error: e2 } = await supabase.from("accounts").update({ max_users: form.maxUsers }).eq("id", selectedAccount);
+
+      const { error: e2 } = await supabase.from("accounts").update({ max_users: parsedUsers }).eq("id", selectedAccount);
       if (e2) throw e2;
     },
-    onSuccess: () => { toast.success("Guardado"); queryClient.invalidateQueries({ queryKey: ["account-limits"] }); },
-    onError: () => toast.error("Error"),
+    onSuccess: async () => {
+      toast.success("Límites individuales guardados exitosamente");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["account-limits", selectedAccount] }),
+        queryClient.invalidateQueries({ queryKey: ["account-data", selectedAccount] }),
+        queryClient.invalidateQueries({ queryKey: ["accounts-with-limits"] }),
+        queryClient.invalidateQueries({ queryKey: ["all-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounts-for-metrics"] }),
+        refreshAccounts(),
+      ]);
+      queryClient.refetchQueries({ queryKey: ["account-data", selectedAccount] });
+      queryClient.refetchQueries({ queryKey: ["account-limits", selectedAccount] });
+      queryClient.refetchQueries({ queryKey: ["accounts-with-limits"] });
+    },
+    onError: (err: any) => toast.error("Error al guardar: " + (err?.message || "Ocurrió un error")),
   });
 
   return (
@@ -308,6 +347,8 @@ function MetricsView({ accounts }: { accounts: any[] }) {
       const { data } = await supabase.from("accounts").select("id, name, max_users");
       return data || [];
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const allAccs = accountsData || accounts;

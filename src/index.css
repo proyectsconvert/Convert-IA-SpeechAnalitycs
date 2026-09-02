@@ -59,6 +59,34 @@
     --chart-neutral: 199 89% 48%;
     --chart-bar-1: 150 70% 24%;
     --chart-bar-2: 150 60% 55%;
+
+    /* login-1 & dark theme variables */
+    --color-bg: #101214;
+    --color-surface: #161A1D;
+    --color-muted-surface: #1D2125;
+    --color-border: #2C333A;
+    --color-text-secondary: #8999a8;
+    --color-text-primary: #C7D1DB;
+    --color-heading: #DEE4EA;
+    --spacing-6: 1.5rem;
+    --rounded-lg: 0.5rem;
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+    --color-text-primary-rgb: 199, 209, 219;
+    --color-bg-2: #C7D1DB;
+    --color-brand-emerald: #10b981;
+  }
+
+  .dark {
+    --color-bg: #101214;
+    --color-surface: #161A1D;
+    --color-muted-surface: #1D2125;
+    --color-border: #2C333A;
+    --color-text-secondary: #8999a8;
+    --color-text-primary: #C7D1DB;
+    --color-heading: #DEE4EA;
+    --color-bg-2: #C7D1DB;
+    --color-text-primary-rgb: 199, 209, 219;
+    --color-brand-emerald: #10b981;
   }
 }
 
@@ -72,3 +100,93 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
+
+/* Dynamic Gradients and Visual Movements */
+@keyframes floatOrb1 {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(45px, -35px) scale(1.12);
+  }
+  66% {
+    transform: translate(-35px, 25px) scale(0.92);
+  }
+}
+
+@keyframes floatOrb2 {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(-40px, 40px) scale(1.15);
+  }
+  66% {
+    transform: translate(35px, -30px) scale(0.88);
+  }
+}
+
+@keyframes floatOrb3 {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(25px, 35px) scale(1.08);
+  }
+}
+
+@keyframes scanlineAnim {
+  0% {
+    top: -5%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.8;
+  }
+  85% {
+    opacity: 0.8;
+  }
+  100% {
+    top: 105%;
+    opacity: 0;
+  }
+}
+
+@keyframes zoomBreathe {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes audioBarBounce {
+  0%, 100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-orb-1 {
+  animation: floatOrb1 18s ease-in-out infinite;
+}
+
+.animate-orb-2 {
+  animation: floatOrb2 22s ease-in-out infinite;
+}
+
+.animate-orb-3 {
+  animation: floatOrb3 15s ease-in-out infinite;
+}
+
+.animate-scanline {
+  animation: scanlineAnim 4.5s ease-in-out infinite;
+}
+
+.animate-zoom-breathe {
+  animation: zoomBreathe 16s ease-in-out infinite alternate;
+}
+
