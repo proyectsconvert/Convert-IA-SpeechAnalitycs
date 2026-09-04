@@ -170,7 +170,7 @@ export function AppHeader() {
                 <Building2 className="w-4 h-4 mr-2" /> Cambiar cuenta
               </DropdownMenuItem>
             )}
-            {can("configuracion", "ver") ? (
+            {can("settings", "view") ? (
               <DropdownMenuItem onClick={() => navigate("/configuracion")}>
                 <Settings className="w-4 h-4 mr-2" /> Configuración
               </DropdownMenuItem>

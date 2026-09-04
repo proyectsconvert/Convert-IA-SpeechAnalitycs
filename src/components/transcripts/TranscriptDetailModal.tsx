@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/contexts/AccountContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,9 @@ export function TranscriptDetailModal({
 }: TranscriptDetailModalProps) {
   const { currentAccount } = useAccount();
   const accountId = currentAccount?.account_id;
+  const { can } = usePermissions();
+  const canPlay = can("library", "play") || can("library.calls", "play");
+  const canDownload = can("library", "download") || can("library.calls", "download");
 
   const [activeTab, setActiveTab] = useState<string>("info");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -359,6 +363,8 @@ export function TranscriptDetailModal({
           onChangeVolume={handleChangeVolume}
           formatTime={formatTime}
           isLoadingAudio={isLoadingAudio}
+          canPlay={canPlay}
+          canDownload={canDownload}
         />
 
         {/* 3. Navegación por Submódulos (Tabs) */}

@@ -37,6 +37,8 @@ interface TranscriptStickyAudioPlayerProps {
   onChangeVolume: (volume: number) => void;
   formatTime: (seconds: number) => string;
   isLoadingAudio?: boolean;
+  canPlay?: boolean;
+  canDownload?: boolean;
 }
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -57,6 +59,8 @@ export function TranscriptStickyAudioPlayer({
   onChangeVolume,
   formatTime,
   isLoadingAudio = false,
+  canPlay = true,
+  canDownload = true,
 }: TranscriptStickyAudioPlayerProps) {
   const [prevVolume, setPrevVolume] = useState(1);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
@@ -144,14 +148,14 @@ export function TranscriptStickyAudioPlayer({
             type="button"
             size="icon"
             onClick={onTogglePlay}
-            disabled={!audioUrl || isLoadingAudio}
+            disabled={!audioUrl || isLoadingAudio || !canPlay}
             className={cn(
               "w-10 h-10 rounded-full flex-shrink-0 shadow-sm transition-transform active:scale-95",
               isPlaying
                 ? "bg-accent text-accent-foreground hover:bg-accent/90"
                 : "bg-primary text-primary-foreground hover:bg-primary/90"
             )}
-            title={isPlaying ? "Pausar (Espacio)" : "Reproducir (Espacio)"}
+            title={!canPlay ? "Sin permiso para reproducir audio" : isPlaying ? "Pausar (Espacio)" : "Reproducir (Espacio)"}
           >
             {isLoadingAudio ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -266,7 +270,7 @@ export function TranscriptStickyAudioPlayer({
           </DropdownMenu>
 
           {/* Download button */}
-          {audioUrl && (
+          {audioUrl && canDownload && (
             <Button
               variant="outline"
               size="sm"

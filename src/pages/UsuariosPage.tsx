@@ -22,6 +22,8 @@ import { format } from "date-fns";
 type MemberRow = {
   user_id: string;
   role: string;
+  custom_role_id?: string | null;
+  custom_role_name?: string | null;
   is_active: boolean;
   created_at: string;
   full_name: string;
@@ -47,11 +49,30 @@ export default function UsuariosPage() {
   const [editRole, setEditRole] = useState("");
   const [membershipDraft, setMembershipDraft] = useState<MembershipDraft>({});
 
+  const { data: customRoles } = useQuery({
+    queryKey: ["custom-roles-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("custom_roles")
+        .select("id, name, description, is_active, parent_role")
+        .eq("is_active", true)
+        .order("name");
+      if (error) {
+        console.error("Error fetching custom roles:", error);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
   const { data: members, isLoading } = useQuery({
-    queryKey: ["account-members", accountId],
+    queryKey: ["account-members", accountId, customRoles],
     queryFn: async () => {
       if (!accountId) return [];
-      const { data: userAccounts } = await supabase.from("user_accounts").select("user_id, role, is_active, created_at").eq("account_id", accountId);
+      const { data: userAccounts } = await supabase
+        .from("user_accounts")
+        .select("user_id, role, is_active, created_at, custom_role_id")
+        .eq("account_id", accountId);
       if (!userAccounts?.length) return [];
       const userIds = userAccounts.map((ua) => ua.user_id);
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", userIds);
@@ -60,10 +81,12 @@ export default function UsuariosPage() {
         const { data } = await supabase.functions.invoke("getAllUserEmails", { body: { userIds } });
         emailMap = data?.emails || {};
       } catch { /* */ }
+      const customRoleMap = new Map((customRoles || []).map((cr) => [cr.id, cr.name]));
       return userAccounts.map((ua) => {
         const prof = profiles?.find((p) => p.id === ua.user_id);
         return {
           ...ua,
+          custom_role_name: ua.custom_role_id ? (customRoleMap.get(ua.custom_role_id) || "Rol Personalizado") : null,
           full_name: prof?.full_name || "Usuario",
           avatar_url: prof?.avatar_url,
           email: emailMap[ua.user_id] || "",
@@ -80,7 +103,7 @@ export default function UsuariosPage() {
       if (!editUser?.user_id) return [];
       const { data, error } = await supabase
         .from("user_accounts")
-        .select("account_id, role, is_active")
+        .select("account_id, role, is_active, custom_role_id")
         .eq("user_id", editUser.user_id);
       if (error) throw error;
       return data ?? [];
@@ -100,7 +123,7 @@ export default function UsuariosPage() {
       const row = byAcc[acc.id];
       draft[acc.id] = {
         included: Boolean(row?.is_active),
-        role: (row?.role as string) || "analyst",
+        role: row?.custom_role_id ? `custom:${row.custom_role_id}` : ((row?.role as string) || "analyst"),
       };
     }
     setMembershipDraft(draft);
@@ -119,12 +142,22 @@ export default function UsuariosPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const acctIds = form.accountIds.length > 0 ? form.accountIds : (accountId ? [accountId] : []);
+      const isCustom = form.role.startsWith("custom:");
+      const roleToSend = isCustom ? "analyst" : form.role;
       const { data, error } = await supabase.functions.invoke("create-user", {
-        body: { email: form.email, password: form.password, fullName: form.fullName, role: form.role, accountIds: acctIds },
+        body: { email: form.email, password: form.password, fullName: form.fullName, role: roleToSend, accountIds: acctIds },
       });
-      const payload = data as { error?: string } | null;
+      const payload = data as { error?: string; userId?: string } | null;
       if (payload?.error) throw new Error(payload.error);
       if (error) throw new Error(error.message || payload?.error || "Error al invocar create-user");
+
+      if (isCustom && payload?.userId) {
+        const customRoleId = form.role.replace("custom:", "");
+        await supabase
+          .from("user_accounts")
+          .update({ custom_role_id: customRoleId })
+          .eq("user_id", payload.userId);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["account-members"] });
@@ -175,12 +208,16 @@ export default function UsuariosPage() {
           }
         }
 
-        const upserts = selected.map(([aid, v]) => ({
-          user_id: userId,
-          account_id: aid,
-          role: v.role as any,
-          is_active: true,
-        }));
+        const upserts = selected.map(([aid, v]) => {
+          const isCustom = v.role.startsWith("custom:");
+          return {
+            user_id: userId,
+            account_id: aid,
+            role: (isCustom ? "analyst" : v.role) as any,
+            custom_role_id: isCustom ? v.role.replace("custom:", "") : null,
+            is_active: true,
+          };
+        });
 
         if (upserts.length > 0) {
           const { error: upErr } = await supabase.from("user_accounts").upsert(upserts, { onConflict: "user_id,account_id" });
@@ -189,7 +226,15 @@ export default function UsuariosPage() {
         return;
       }
 
-      const { error } = await supabase.from("user_accounts").update({ role: editRole as any }).eq("user_id", editUser.user_id).eq("account_id", accountId);
+      const isCustom = editRole.startsWith("custom:");
+      const { error } = await supabase
+        .from("user_accounts")
+        .update({
+          role: (isCustom ? "analyst" : editRole) as any,
+          custom_role_id: isCustom ? editRole.replace("custom:", "") : null,
+        })
+        .eq("user_id", editUser.user_id)
+        .eq("account_id", accountId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -221,7 +266,7 @@ export default function UsuariosPage() {
 
   const openEditUser = (m: MemberRow) => {
     setEditUser(m);
-    setEditRole(m.role);
+    setEditRole(m.custom_role_id ? `custom:${m.custom_role_id}` : m.role);
   };
 
   const updateDraft = (account_id: string, patch: Partial<{ included: boolean; role: string }>) => {
@@ -284,7 +329,18 @@ export default function UsuariosPage() {
                     </div>
                   </td>
                   <td className="px-5 py-4 text-muted-foreground text-xs">{m.email || "—"}</td>
-                  <td className="px-5 py-4"><StatusBadge variant={roleVariant(m.role)} dot={false}>{roleLabels[m.role] || m.role}</StatusBadge></td>
+                  <td className="px-5 py-4">
+                    {m.custom_role_name ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                          {m.custom_role_name}
+                        </span>
+                        <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded font-normal">Personalizado</span>
+                      </div>
+                    ) : (
+                      <StatusBadge variant={roleVariant(m.role)} dot={false}>{roleLabels[m.role] || m.role}</StatusBadge>
+                    )}
+                  </td>
                   <td className="px-5 py-4"><StatusBadge variant={m.is_active ? "completed" : "error"}>{m.is_active ? "Activo" : "Inactivo"}</StatusBadge></td>
                   <td className="px-5 py-4 text-muted-foreground text-xs">{new Date(m.created_at).toLocaleDateString()}</td>
                   <td className="px-5 py-4">
@@ -328,13 +384,24 @@ export default function UsuariosPage() {
             <div>
               <label className="text-xs font-medium mb-1 block">Rol</label>
               <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
                 <SelectContent>
+                  <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase">Roles del Sistema</div>
                   {profile?.is_superadmin && <SelectItem value="superadmin">Superadmin</SelectItem>}
                   <SelectItem value="admin">Administrador</SelectItem>
                   <SelectItem value="supervisor">Supervisor</SelectItem>
                   <SelectItem value="analyst">Analista</SelectItem>
                   <SelectItem value="observer">Observador</SelectItem>
+                  {customRoles && customRoles.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 mt-2 text-[11px] font-semibold text-muted-foreground uppercase border-t border-border pt-2">Roles Personalizados</div>
+                      {customRoles.map((cr) => (
+                        <SelectItem key={cr.id} value={`custom:${cr.id}`}>
+                          {cr.name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -377,12 +444,23 @@ export default function UsuariosPage() {
             <div className="space-y-2">
               <label className="text-xs font-medium">Rol en esta cuenta</label>
               <Select value={editRole} onValueChange={setEditRole}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
                 <SelectContent>
+                  <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase">Roles del Sistema</div>
                   <SelectItem value="admin">Administrador</SelectItem>
                   <SelectItem value="supervisor">Supervisor</SelectItem>
                   <SelectItem value="analyst">Analista</SelectItem>
                   <SelectItem value="observer">Observador</SelectItem>
+                  {customRoles && customRoles.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 mt-2 text-[11px] font-semibold text-muted-foreground uppercase border-t border-border pt-2">Roles Personalizados</div>
+                      {customRoles.map((cr) => (
+                        <SelectItem key={cr.id} value={`custom:${cr.id}`}>
+                          {cr.name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -417,12 +495,23 @@ export default function UsuariosPage() {
                         </div>
                         {included && (
                           <Select value={r} onValueChange={(v) => updateDraft(acc.id, { role: v })}>
-                            <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
                             <SelectContent>
+                              <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase">Roles del Sistema</div>
                               <SelectItem value="admin">Administrador</SelectItem>
                               <SelectItem value="supervisor">Supervisor</SelectItem>
                               <SelectItem value="analyst">Analista</SelectItem>
                               <SelectItem value="observer">Observador</SelectItem>
+                              {customRoles && customRoles.length > 0 && (
+                                <>
+                                  <div className="px-2 py-1 mt-2 text-[11px] font-semibold text-muted-foreground uppercase border-t border-border pt-2">Roles Personalizados</div>
+                                  {customRoles.map((cr) => (
+                                    <SelectItem key={cr.id} value={`custom:${cr.id}`}>
+                                      {cr.name}
+                                    </SelectItem>
+                                  ))}
+                                </>
+                              )}
                             </SelectContent>
                           </Select>
                         )}

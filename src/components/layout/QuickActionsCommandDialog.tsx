@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/command";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAudioUploadModal } from "@/contexts/AudioUploadModalContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { NAVIGATION_CONFIG } from "@/config/navigationConfig";
 
 interface Props {
   open: boolean;
@@ -45,6 +47,7 @@ export function QuickActionsCommandDialog({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { openUploadModal } = useAudioUploadModal();
+  const { can } = usePermissions();
 
   const isMac = useMemo(() => {
     return typeof window !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
@@ -54,6 +57,48 @@ export function QuickActionsCommandDialog({ open, onOpenChange }: Props) {
     onOpenChange(false);
     command();
   };
+
+  const canUpload = can("library", "create") || can("uploads", "create");
+  const canQualityMatrix = can("analytics", "edit") || can("analytics", "view");
+  const canPrompts = can("prompts", "view");
+
+  const allowedModules = useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      url: string;
+      icon: any;
+      category?: string;
+    }> = [];
+
+    NAVIGATION_CONFIG.forEach((group) => {
+      if (group.children && group.children.length > 0) {
+        group.children.forEach((child) => {
+          if (can(child.perm.module, child.perm.action)) {
+            list.push({
+              id: child.id,
+              title: `${group.title} → ${child.title}`,
+              url: child.url,
+              icon: child.icon,
+              category: group.title,
+            });
+          }
+        });
+      } else if (group.url) {
+        const isAllowed = group.perm ? can(group.perm.module, group.perm.action) : true;
+        if (isAllowed) {
+          list.push({
+            id: group.id,
+            title: group.title,
+            url: group.url,
+            icon: group.icon,
+          });
+        }
+      }
+    });
+
+    return list;
+  }, [can]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -73,70 +118,76 @@ export function QuickActionsCommandDialog({ open, onOpenChange }: Props) {
 
           <CommandList className="max-h-[380px] p-2 overflow-y-auto scrollbar-thin">
             <CommandEmpty className="py-8 text-center text-xs text-muted-foreground">
-              No se encontraron acciones ni módulos que coincidan.
+              No se encontraron acciones ni módulos autorizados.
             </CommandEmpty>
 
-            {/* GRUPO 1: ACCIONES RÁPIDAS */}
+            {/* GRUPO 1: ACCIONES RÁPIDAS (Filtradas por permisos) */}
             <CommandGroup heading="Acciones Frecuentes">
-              <CommandItem
-                onSelect={() =>
-                  runCommand(() => {
-                    openUploadModal();
-                  })
-                }
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-emerald-500/10 aria-selected:bg-emerald-500/15 transition-colors"
-              >
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 border border-emerald-500/30">
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground">Subir y Analizar Llamadas</p>
-                  <p className="text-[10px] text-muted-foreground">Abre el asistente inteligente en 3 pasos</p>
-                </div>
-                <CommandShortcut className="text-[10px] font-mono font-bold bg-secondary px-1.5 py-0.5 rounded border border-border/60">
-                  {isMac ? "⌘U" : "Ctrl+U"}
-                </CommandShortcut>
-              </CommandItem>
+              {canUpload && (
+                <CommandItem
+                  onSelect={() =>
+                    runCommand(() => {
+                      openUploadModal();
+                    })
+                  }
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-emerald-500/10 aria-selected:bg-emerald-500/15 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 border border-emerald-500/30">
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground">Subir y Analizar Llamadas</p>
+                    <p className="text-[10px] text-muted-foreground">Abre el asistente de carga inteligente</p>
+                  </div>
+                  <CommandShortcut className="text-[10px] font-mono font-bold bg-secondary px-1.5 py-0.5 rounded border border-border/60">
+                    {isMac ? "⌘U" : "Ctrl+U"}
+                  </CommandShortcut>
+                </CommandItem>
+              )}
 
-              <CommandItem
-                onSelect={() =>
-                  runCommand(() => {
-                    navigate("/analizador-total?tab=quality");
-                  })
-                }
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-emerald-500/10 aria-selected:bg-emerald-500/15 transition-colors"
-              >
-                <div className="w-7 h-7 rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center flex-shrink-0 border border-teal-500/30">
-                  <FilePlus className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground">Crear Nueva Matriz de Calidad</p>
-                  <p className="text-[10px] text-muted-foreground">Configurar criterios y auditorías de servicio</p>
-                </div>
-                <CommandShortcut className="text-[10px] font-mono text-muted-foreground">
-                  Matrices
-                </CommandShortcut>
-              </CommandItem>
+              {canQualityMatrix && (
+                <CommandItem
+                  onSelect={() =>
+                    runCommand(() => {
+                      navigate("/analizador-total?tab=quality");
+                    })
+                  }
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-emerald-500/10 aria-selected:bg-emerald-500/15 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center flex-shrink-0 border border-teal-500/30">
+                    <FilePlus className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground">Matriz de Calidad</p>
+                    <p className="text-[10px] text-muted-foreground">Configurar criterios y auditorías de servicio</p>
+                  </div>
+                  <CommandShortcut className="text-[10px] font-mono text-muted-foreground">
+                    Matrices
+                  </CommandShortcut>
+                </CommandItem>
+              )}
 
-              <CommandItem
-                onSelect={() =>
-                  runCommand(() => {
-                    navigate("/prompts");
-                  })
-                }
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-emerald-500/10 aria-selected:bg-emerald-500/15 transition-colors"
-              >
-                <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 border border-indigo-500/30">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground">Gestionar Prompts de IA</p>
-                  <p className="text-[10px] text-muted-foreground">Ver y redactar instrucciones personalizadas</p>
-                </div>
-                <CommandShortcut className="text-[10px] font-mono text-muted-foreground">
-                  Prompts
-                </CommandShortcut>
-              </CommandItem>
+              {canPrompts && (
+                <CommandItem
+                  onSelect={() =>
+                    runCommand(() => {
+                      navigate("/prompts");
+                    })
+                  }
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-emerald-500/10 aria-selected:bg-emerald-500/15 transition-colors"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 border border-indigo-500/30">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground">Gestionar Prompts de IA</p>
+                    <p className="text-[10px] text-muted-foreground">Ver y redactar instrucciones personalizadas</p>
+                  </div>
+                  <CommandShortcut className="text-[10px] font-mono text-muted-foreground">
+                    Prompts
+                  </CommandShortcut>
+                </CommandItem>
+              )}
 
               <CommandItem
                 onSelect={() =>
@@ -161,89 +212,25 @@ export function QuickActionsCommandDialog({ open, onOpenChange }: Props) {
 
             <CommandSeparator className="my-1.5" />
 
-            {/* GRUPO 2: NAVEGACIÓN A MÓDULOS */}
-            <CommandGroup heading="Ir a Módulos del Sistema">
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <Home className="w-4 h-4 text-emerald-500" />
-                <span className="text-xs font-semibold flex-1">Inicio (Dashboard Principal)</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/transcripciones"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <FileAudio className="w-4 h-4 text-teal-500" />
-                <span className="text-xs font-semibold flex-1">Transcripciones & Grabaciones</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/whatsapp"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <MessageSquare className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-semibold flex-1">Conversaciones WhatsApp</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/analiticas"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <BarChart3 className="w-4 h-4 text-blue-500" />
-                <span className="text-xs font-semibold flex-1">Indicadores & Analíticas</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/analizador-total"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <BrainCircuit className="w-4 h-4 text-purple-500" />
-                <span className="text-xs font-semibold flex-1">Analizador Total (Auditoría & Calidad)</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/biblioteca"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <FolderOpen className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-semibold flex-1">Gestión de Grabaciones (Biblioteca)</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/conexion"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <Wifi className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-semibold flex-1">Conexión FTP & Webhooks</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/configuracion"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <Settings className="w-4 h-4 text-slate-400" />
-                <span className="text-xs font-semibold flex-1">Configuración del Sistema</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-
-              <CommandItem
-                onSelect={() => runCommand(() => navigate("/usuarios"))}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
-              >
-                <Users className="w-4 h-4 text-sky-400" />
-                <span className="text-xs font-semibold flex-1">Usuarios y Accesos</span>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </CommandItem>
-            </CommandGroup>
+            {/* GRUPO 2: NAVEGACIÓN A MÓDULOS (100% DINÁMICO SEGÚN PERMISOS) */}
+            {allowedModules.length > 0 && (
+              <CommandGroup heading="Módulos Autorizados">
+                {allowedModules.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => runCommand(() => navigate(item.url))}
+                      className="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer hover:bg-secondary aria-selected:bg-secondary transition-colors"
+                    >
+                      <Icon className="w-4 h-4 text-emerald-500" />
+                      <span className="text-xs font-semibold flex-1">{item.title}</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            )}
 
             <CommandSeparator className="my-1.5" />
 

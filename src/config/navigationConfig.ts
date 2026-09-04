@@ -143,7 +143,7 @@ export const NAVIGATION_CONFIG: DockGroupItem[] = [
         description: "Extracción automática de datos estructurados",
         url: "/extracciones",
         icon: Tags,
-        perm: { module: "analytics", action: "view" },
+        perm: { module: "extractions", action: "view" },
       },
       {
         id: "ai-prompts",
@@ -184,7 +184,7 @@ export const NAVIGATION_CONFIG: DockGroupItem[] = [
         description: "Validación y benchmarking WER/CER de modelos",
         url: "/validacion-modelos",
         icon: ShieldCheck,
-        perm: { module: "transcription_models", action: "view" },
+        perm: { module: "transcription_models", action: "test" },
       },
     ],
   },

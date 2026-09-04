@@ -36,14 +36,14 @@ const mainNav: Array<{
   { title: "Analítica", url: "/analizador-total", icon: BarChart3, sparkles: true, perm: { module: "analytics", action: "view" } },
   { title: "Indicadores", url: "/analiticas", icon: LineChart, perm: { module: "reports", action: "view" } },
   { title: "Copiloto IA", url: "/consulta-ia", icon: BrainCircuit, perm: { module: "chat_ai", action: "view" } },
-  { title: "Reglas de Extracción", url: "/extracciones", icon: Tags, perm: { module: "analytics", action: "view" } },
+  { title: "Reglas de Extracción", url: "/extracciones", icon: Tags, perm: { module: "extractions", action: "view" } },
   { title: "Prompts", url: "/prompts", icon: BookOpen, perm: { module: "prompts", action: "view" } },
 ];
 
 const adminNav: Array<{ title: string; url: string; icon: typeof Building2; perm: NavPerm }> = [
   { title: "Integraciones", url: "/conexion", icon: Cable, perm: { module: "connections", action: "view" } },
   { title: "Modelos de Transcripción", url: "/modelos-transcripcion", icon: AudioLines, perm: { module: "transcription_models", action: "view" } },
-  { title: "Evaluación de Modelos", url: "/validacion-modelos", icon: ShieldCheck, perm: { module: "transcription_models", action: "view" } },
+  { title: "Evaluación de Modelos", url: "/validacion-modelos", icon: ShieldCheck, perm: { module: "transcription_models", action: "test" } },
   { title: "Cuentas", url: "/cuentas", icon: Building2, perm: { module: "accounts", action: "view" } },
   { title: "Usuarios", url: "/usuarios", icon: Users, perm: { module: "users", action: "view" } },
   { title: "Roles y Permisos", url: "/roles", icon: Shield, perm: { module: "roles", action: "view" } },

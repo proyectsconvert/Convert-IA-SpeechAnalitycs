@@ -8,7 +8,7 @@ const EXACT: Record<string, { module: string; action: string }> = {
   "/analytics-whatsapp": { module: "whatsapp", action: "view" },
   "/transcripciones": { module: "transcriptions", action: "view" },
   "/analizador-total": { module: "analytics", action: "view" },
-  "/extracciones": { module: "analytics", action: "view" },
+  "/extracciones": { module: "extractions", action: "view" },
   "/analiticas": { module: "reports", action: "view" }, // Indicadores Estratégicos
   "/consulta-ia": { module: "chat_ai", action: "view" },
   "/prompts": { module: "prompts", action: "view" },
@@ -21,7 +21,7 @@ const EXACT: Record<string, { module: string; action: string }> = {
   "/soporte": { module: "soporte", action: "view" },
   "/conexion": { module: "connections", action: "view" },
   "/modelos-transcripcion": { module: "transcription_models", action: "view" },
-  "/validacion-modelos": { module: "transcription_models", action: "view" },
+  "/validacion-modelos": { module: "transcription_models", action: "test" },
   "/configuracion": { module: "settings", action: "view" },
 };
 

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/contexts/AccountContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Upload, MoreVertical, FileAudio, Sparkles, Play, RefreshCw, Eye, Trash2, Search, XSquare, FileSpreadsheet, Loader2, Phone, Clock, CheckCircle2, AlertCircle, Activity, Settings2, Filter, X } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -74,9 +75,14 @@ export default function BibliotecaPage() {
   const [filterExtCampaña, setFilterExtCampaña] = useState<string>("all");
   const [filterExtFecha, setFilterExtFecha] = useState<string>("all");
 
-  // Borrado restringido únicamente a Superadmin global o rol superadmin de la cuenta.
-  // El consumo histórico (horas transcritas, etc.) NO se descuenta al borrar.
-  const canDelete = Boolean(profile?.is_superadmin || currentAccount?.role === "superadmin");
+  const { can } = usePermissions();
+  const canDeleteSingle = can("library", "delete") || can("library.calls", "delete");
+  const canBulkDelete = can("library", "bulk_delete") || can("library.calls", "bulk_delete");
+  const canUpload = can("library", "upload") || can("library.calls", "upload");
+  const canExport = can("library", "export") || can("library.calls", "export");
+  const canReprocess = can("library", "reprocess") || can("library.calls", "reprocess");
+  const canPlay = can("library", "play") || can("library.calls", "play");
+  const canDelete = canDeleteSingle;
 
   const handleDelete = async (fileId: string) => {
     setDeleting(true);
@@ -609,7 +615,7 @@ export default function BibliotecaPage() {
           <p className="text-sm text-muted-foreground">Gestión y biblioteca de llamadas de audio para análisis.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(() => {
+          {canReprocess && (() => {
             const nonCompleted = files?.filter((f) => f.status !== "completed" && f.status !== "cancelled") || [];
             return nonCompleted.length > 0 ? (
               <Button variant="outline" size="sm" onClick={() => openProcessDialog(nonCompleted.map((f) => f.id))} className="gap-1.5 text-xs text-accent border-accent/30 hover:bg-accent/10">
@@ -636,12 +642,16 @@ export default function BibliotecaPage() {
           <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["audio-files", accountId] })} className="gap-1.5 text-xs">
             <RefreshCw className="w-3.5 h-3.5" /> Actualizar
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)} disabled={!files?.length} className="gap-1.5 text-xs">
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar
-          </Button>
-          <Button size="sm" onClick={openUploadModal} className="gap-1.5 text-xs">
-            <Upload className="w-3.5 h-3.5" /> Subir Llamada
-          </Button>
+          {canExport && (
+            <Button variant="outline" size="sm" onClick={() => setExportDialogOpen(true)} disabled={!files?.length} className="gap-1.5 text-xs">
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar
+            </Button>
+          )}
+          {canUpload && (
+            <Button size="sm" onClick={openUploadModal} className="gap-1.5 text-xs">
+              <Upload className="w-3.5 h-3.5" /> Subir Llamada
+            </Button>
+          )}
         </div>
       </div>
 
@@ -833,10 +843,12 @@ export default function BibliotecaPage() {
             <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setSelected([])}>
               <XSquare className="w-3.5 h-3.5" /> Deseleccionar
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => openProcessDialog(selected)}>
-              <Sparkles className="w-3.5 h-3.5" /> Procesar
-            </Button>
-            {canDelete && (
+            {canReprocess && (
+              <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => openProcessDialog(selected)}>
+                <Sparkles className="w-3.5 h-3.5" /> Procesar
+              </Button>
+            )}
+            {canBulkDelete && (
               <Button size="sm" variant="outline" className="gap-1.5 text-xs text-destructive hover:bg-destructive/10" onClick={() => setDeleteDialog({ open: true, fileId: "", fileName: `${selected.length} archivos`, bulk: true })}>
                 <Trash2 className="w-3.5 h-3.5" /> Eliminar
               </Button>
@@ -940,7 +952,7 @@ export default function BibliotecaPage() {
                             <button className="p-1.5 rounded hover:bg-secondary text-muted-foreground"><MoreVertical className="w-4 h-4" /></button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {f.status !== "completed" && f.status !== "cancelled" && (
+                            {canReprocess && f.status !== "completed" && f.status !== "cancelled" && (
                               <DropdownMenuItem onClick={() => openProcessDialog([f.id])} disabled={processing.includes(f.id)}>
                                 {f.status === "error" ? <RefreshCw className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
                                 {f.status === "error" ? "Reintentar" : "Procesar"}
@@ -951,7 +963,7 @@ export default function BibliotecaPage() {
                                 <Eye className="w-4 h-4 mr-2" /> Ver Transcripción
                               </DropdownMenuItem>
                             )}
-                            {canDelete && (
+                            {canDeleteSingle && (
                               <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteDialog({ open: true, fileId: f.id, fileName: f.file_name })}>
                                 <Trash2 className="w-4 h-4 mr-2" /> Eliminar
                               </DropdownMenuItem>

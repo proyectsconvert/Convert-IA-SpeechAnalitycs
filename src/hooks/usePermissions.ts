@@ -47,7 +47,8 @@ export function usePermissions() {
       return keys;
     },
     enabled: Boolean(user?.id && accountId) && !isElevated,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 10,
+    refetchOnWindowFocus: true,
     structuralSharing: false,
   });
 
@@ -55,7 +56,68 @@ export function usePermissions() {
     (module: string, action: string) => {
       if (isElevated) return true;
       if (!permissionKeys || !Array.isArray(permissionKeys)) return false;
-      return permissionKeys.includes(`${module}:${action}`);
+
+      // 1. Coincidencia directa
+      if (permissionKeys.includes(`${module}:${action}`)) return true;
+
+      // 2. Mapeo de alias de módulos (inglés <-> español y sub-módulos)
+      const moduleAliases: Record<string, string[]> = {
+        chat_ai: ["consulta_ia"],
+        consulta_ia: ["chat_ai"],
+        whatsapp: ["whatsapp.conversations", "whatsapp.analysis"],
+        "whatsapp.conversations": ["whatsapp"],
+        "whatsapp.analysis": ["whatsapp"],
+        library: ["library.calls", "biblioteca"],
+        "library.calls": ["library", "biblioteca"],
+        biblioteca: ["library", "library.calls"],
+        analytics: ["analytics.unified", "analytics.quality", "analiticas"],
+        "analytics.unified": ["analytics", "analiticas"],
+        "analytics.quality": ["analytics", "analiticas"],
+        analiticas: ["analytics", "analytics.unified"],
+        transcriptions: ["transcripciones"],
+        transcripciones: ["transcriptions"],
+        settings: ["settings.general", "settings.branding", "settings.security", "configuracion"],
+        "settings.general": ["settings", "configuracion"],
+        configuracion: ["settings", "settings.general"],
+        users: ["usuarios"],
+        usuarios: ["users"],
+        extractions: ["extracciones"],
+        extracciones: ["extractions"],
+        reports: ["reports.strategic"],
+        "reports.strategic": ["reports"],
+        connections: ["connections.remote"],
+        "connections.remote": ["connections"],
+        billing: ["billing.invoices", "billing.limits", "facturacion", "limites"],
+        facturacion: ["billing", "billing.invoices"],
+        limites: ["billing", "billing.limits"],
+        soporte: ["soporte"],
+      };
+
+      // 3. Mapeo de alias de acciones
+      const actionAliases: Record<string, string[]> = {
+        view: ["ver"],
+        ver: ["view"],
+        edit: ["editar"],
+        editar: ["edit"],
+        create: ["crear"],
+        crear: ["create"],
+        delete: ["borrar", "eliminar"],
+        borrar: ["delete", "eliminar"],
+        eliminar: ["delete", "borrar"],
+        use: ["usar", "chat"],
+        history: ["historial"],
+      };
+
+      const mList = [module, ...(moduleAliases[module] || [])];
+      const aList = [action, ...(actionAliases[action] || [])];
+
+      for (const m of mList) {
+        for (const a of aList) {
+          if (permissionKeys.includes(`${m}:${a}`)) return true;
+        }
+      }
+
+      return false;
     },
     [isElevated, permissionKeys],
   );
