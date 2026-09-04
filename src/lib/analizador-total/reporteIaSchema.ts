@@ -31,12 +31,10 @@ export const MASTER_COLUMNS: MasterColumnSpec[] = [
   { name: "score_0_1", category: "metric_quant", dtype: "number", critical: false, description: "Score normalizado 0-1." },
   { name: "score_pct", category: "metric_quant", dtype: "number", critical: false, description: "Score en porcentaje. Calidad de la interacción." },
 
-  // Categóricas (5)
+  // Categóricas (3)
   { name: "sentimiento", category: "categorical", dtype: "category", critical: true, description: "Positivo / negativo / neutral. Eje principal del análisis emocional." },
-  { name: "Atribución responsabilidad", category: "categorical", dtype: "category", critical: false, description: "A quién se atribuye la responsabilidad del resultado." },
-  { name: "Promesa de pago", category: "categorical", dtype: "category", critical: true, description: "Si hubo o no compromiso de pago. Indicador clave de cobranza." },
+  { name: "Atribución responsabilidad", category: "categorical", dtype: "category", critical: false, description: "A quién se atribuye la responsabilidad del resultado (Cliente | Asesor | No aplica)." },
   { name: "Motivo principal", category: "categorical", dtype: "category", critical: true, description: "Razón principal del contacto. Segmentación operativa." },
-  { name: "Estado pago (detalle)", category: "categorical", dtype: "category", critical: false, description: "Estado real del pago tras la conversación." },
 
   // Contenido crudo (1)
   { name: "conversación", category: "raw_text", dtype: "text-long", critical: true, description: "Transcripción completa. Fuente de citas textuales y patrones." },

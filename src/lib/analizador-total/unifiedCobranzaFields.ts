@@ -1,5 +1,6 @@
 import type { AnalizadorUnifiedRow } from "@/components/analizador-total/types";
 import { resolveExtColumnKey } from "@/lib/extractions/extColumnResolve";
+import { resolveAtribucionResponsabilidad } from "./resolveAtribucion";
 
 type RowExt = AnalizadorUnifiedRow & Record<string, unknown>;
 
@@ -844,8 +845,7 @@ export function enrichAnalizadorRow<T extends RowExt>(row: T): T {
   const promesa = classifyPromesaDePago(row);
   row.promesa_de_pago = promesa;
 
-  const atrib = pickResponsabilidad(row);
-  row.atribucion_responsabilidad = !isGenericValue(atrib) ? atrib : deriveAtribucionFromPromesa(promesa);
+  row.atribucion_responsabilidad = resolveAtribucionResponsabilidad(row);
 
   const motivo = pickMotivo(row);
   row.motivo_principal = !shouldForceDerivedOutcome(promesa) && !isGenericValue(motivo) ? motivo : deriveMotivoFromPromesa(promesa);

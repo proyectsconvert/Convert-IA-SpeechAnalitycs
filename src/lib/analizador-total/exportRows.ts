@@ -5,6 +5,7 @@ import type { AnalizadorUnifiedRow } from "@/components/analizador-total/types";
 import { resolveExtColumnKey } from "@/lib/extractions/extColumnResolve";
 import { normalizeWhatsappAnalysisForInsights } from "@/lib/analysis/normalizeWhatsappAnalysis";
 import { enrichAnalizadorRow } from "@/lib/analizador-total/unifiedCobranzaFields";
+import { resolveAtribucionResponsabilidad } from "@/lib/analizador-total/resolveAtribucion";
 import { supabase } from "@/integrations/supabase/client";
 
 import { formatCleanSummary } from "@/lib/utils/formatSummary";
@@ -96,8 +97,6 @@ export const MASTER_EXPORT_HEADERS = [
   "Conclusiones",
   "Recomendaciones",
   "Atribución responsabilidad",
-  "Promesa de pago",
-  "Estado pago (detalle)",
   "Motivo principal",
   "ext_Nombre Asesor",
   "ext_Nombre Campaña",
@@ -145,9 +144,7 @@ function buildMasterExportRow(
     Conclusiones: typeof res.conclusions === "string" ? res.conclusions : String(res.conclusions ?? ""),
     Recomendaciones:
       typeof res.recommendations === "string" ? res.recommendations : String(res.recommendations ?? ""),
-    "Atribución responsabilidad": String(row.atribucion_responsabilidad ?? ""),
-    "Promesa de pago": String(row.promesa_de_pago ?? ""),
-    "Estado pago (detalle)": String(row.estado_pago_detalle ?? ""),
+    "Atribución responsabilidad": String(row.atribucion_responsabilidad || resolveAtribucionResponsabilidad(row) || "No aplica"),
     "Motivo principal": String(row.motivo_principal ?? ""),
     "ext_Nombre Asesor": (function() {
       if (row.agent && row.agent !== "Desconocido") return String(row.agent).replace(/@.*$/, "").trim();
