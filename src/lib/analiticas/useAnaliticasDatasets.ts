@@ -25,7 +25,7 @@ export function useAnaliticasDatasets(accountId: string | undefined, options?: {
       while (hasMore) {
         let q = supabase
           .from("audio_files")
-          .select("*")
+          .select("id, file_name, status, duration_seconds, created_at, metadata")
           .eq("account_id", accountId)
           .order("created_at", { ascending: false })
           .range(from, from + PAGE - 1);
@@ -86,7 +86,10 @@ export function useAnaliticasDatasets(accountId: string | undefined, options?: {
     queryKey: ["analiticas-analyses", accountId, windowKey],
     queryFn: async () => {
       if (!accountId) return [];
-      let q = supabase.from("analyses").select("*").eq("account_id", accountId);
+      let q = supabase
+        .from("analyses")
+        .select("id, audio_file_id, overall_sentiment, sentiment_score, summary, tags, created_at")
+        .eq("account_id", accountId);
       if (sinceIso) q = q.gte("created_at", sinceIso);
       const { data, error } = await q;
       if (error) throw error;
@@ -199,7 +202,7 @@ export function useAnaliticasDatasets(accountId: string | undefined, options?: {
       while (true) {
         let q = supabase
           .from("whatsapp_analysis_results")
-          .select("*")
+          .select("id, conversation_id, analysis_status, results, score_general, analyzed_at, created_at")
           .eq("account_id", accountId!)
           .eq("analysis_status", "completed")
           .range(from, from + PAGE - 1);
@@ -250,16 +253,39 @@ export function useAnaliticasDatasets(accountId: string | undefined, options?: {
       const rec: Record<string, string> = {};
       for (let i = 0; i < ids.length; i += 100) {
         const chunk = ids.slice(i, i + 100);
-        const { data: agentMsgs } = await supabase
-          .from("whatsapp_messages")
-          .select("conversation_id, agent_name")
-          .in("conversation_id", chunk)
-          .eq("sender_type", "Agente")
-          .not("agent_name", "is", null)
-          .order("timestamp", { ascending: true });
-        (agentMsgs || []).forEach((m: { conversation_id: string; agent_name: string | null }) => {
-          if (m.agent_name && !rec[m.conversation_id]) rec[m.conversation_id] = m.agent_name;
-        });
+        // 1. Prioridad: Documentos paralelos pre-agregados
+        try {
+          const { data: docs } = await supabase
+            .from("whatsapp_conversation_documents" as any)
+            .select("conversation_id, transcript_json")
+            .in("conversation_id", chunk);
+
+          (docs || []).forEach((d: any) => {
+            if (d.conversation_id && Array.isArray(d.transcript_json)) {
+              const agentMsg = d.transcript_json.find((m: any) => m.sender_type === "Agente" && m.agent_name);
+              if (agentMsg?.agent_name && !rec[d.conversation_id]) {
+                rec[d.conversation_id] = agentMsg.agent_name;
+              }
+            }
+          });
+        } catch {
+          // Fallback silencioso
+        }
+
+        // 2. Fallback de seguridad: buscar las conversaciones restantes en tabla original
+        const missing = chunk.filter((id) => !rec[id]);
+        if (missing.length > 0) {
+          const { data: agentMsgs } = await supabase
+            .from("whatsapp_messages")
+            .select("conversation_id, agent_name")
+            .in("conversation_id", missing)
+            .eq("sender_type", "Agente")
+            .not("agent_name", "is", null)
+            .order("timestamp", { ascending: true });
+          (agentMsgs || []).forEach((m: { conversation_id: string; agent_name: string | null }) => {
+            if (m.agent_name && !rec[m.conversation_id]) rec[m.conversation_id] = m.agent_name;
+          });
+        }
       }
       return rec;
     },

@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function useBibliotecaVisibleData(
   accountId: string | undefined,
-  visibleIds: string[]
+  visibleIds: string[],
+  hasProcessingFiles: boolean = false
 ) {
   return useQuery({
     queryKey: ["biblioteca-visible-data", accountId, visibleIds],
@@ -12,10 +13,10 @@ export function useBibliotecaVisibleData(
         return { analyses: {}, transcriptions: {}, extractions: {} };
       }
 
-      // 1. Fetch Analyses
+      // 1. Fetch Analyses (solo campos requeridos por la vista y reglas)
       const { data: analyses } = await supabase
         .from("analyses")
-        .select("*")
+        .select("audio_file_id, summary, overall_sentiment, sentiment_score, created_at")
         .in("audio_file_id", visibleIds)
         .eq("account_id", accountId);
 
@@ -48,6 +49,6 @@ export function useBibliotecaVisibleData(
       return { analyses: analysisMap, transcriptions: transMap, extractions: extMap };
     },
     enabled: !!accountId && visibleIds.length > 0,
-    refetchInterval: 5000, // Keep polling for visible items
+    refetchInterval: hasProcessingFiles ? 5000 : false,
   });
 }

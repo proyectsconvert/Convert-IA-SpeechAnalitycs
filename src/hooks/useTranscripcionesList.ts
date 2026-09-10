@@ -18,7 +18,10 @@ export function useTranscripcionesList(
 
       let query = supabase
         .from("transcriptions")
-        .select("*, audio_files!inner(*)", { count: "exact" })
+        .select(
+          "id, audio_file_id, full_text, created_at, audio_files!inner(id, file_name, created_at, duration_seconds, status, file_path)",
+          { count: "exact" }
+        )
         .eq("account_id", accountId);
 
       if (searchTerm) {

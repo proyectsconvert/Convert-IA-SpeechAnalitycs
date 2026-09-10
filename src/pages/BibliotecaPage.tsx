@@ -157,7 +157,10 @@ export default function BibliotecaPage() {
   const totalCount = filesData?.count || 0;
 
   const visibleIds = useMemo(() => files.map(f => f.id), [files]);
-  const { data: visibleData, isLoading: isLoadingVisible } = useBibliotecaVisibleData(accountId, visibleIds);
+  const hasProcessingFiles = useMemo(() => {
+    return files.some(f => ["uploaded", "pending", "queued", "transcribing", "analyzing"].includes(f.status));
+  }, [files]);
+  const { data: visibleData, isLoading: isLoadingVisible } = useBibliotecaVisibleData(accountId, visibleIds, hasProcessingFiles);
 
   const { data: prompts } = useQuery({
     queryKey: ["prompts-active", accountId],

@@ -219,12 +219,34 @@ export function InteractionDetailPanel({ row }: Props) {
     if (!convId) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
-        .from("whatsapp_messages")
-        .select("timestamp, sender_type, agent_name, content, message_type")
-        .eq("conversation_id", convId)
-        .order("timestamp", { ascending: true });
-      if (cancelled || !data?.length) return;
+      // 1. Prioridad: Documento pre-agregado JSONB en paralelo
+      let rawMsgs: any[] | null = null;
+      try {
+        const { data: doc } = await supabase
+          .from("whatsapp_conversation_documents" as any)
+          .select("transcript_json")
+          .eq("conversation_id", convId)
+          .maybeSingle();
+
+        if (doc && Array.isArray((doc as any).transcript_json) && (doc as any).transcript_json.length > 0) {
+          rawMsgs = (doc as any).transcript_json;
+        }
+      } catch {
+        // Fallback silencioso
+      }
+
+      // 2. Fallback de seguridad cero regresión: tabla relacional original
+      if (!rawMsgs) {
+        const { data } = await supabase
+          .from("whatsapp_messages")
+          .select("timestamp, sender_type, agent_name, content, message_type")
+          .eq("conversation_id", convId)
+          .order("timestamp", { ascending: true });
+        rawMsgs = data || [];
+      }
+
+      if (cancelled || !rawMsgs?.length) return;
+      const data = rawMsgs;
       const lines = data.map((msg: any) => {
         const d = new Date(msg.timestamp);
         const time = d.toLocaleTimeString("es-MX", { hour12: false });

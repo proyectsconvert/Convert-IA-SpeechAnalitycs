@@ -85,17 +85,26 @@ export default function TranscripcionesPage() {
   const totalCount = transData?.count || 0;
   const isSearchActive = callSearchTerm !== debouncedCallSearchTerm || isFetching;
 
+  const visibleAudioIds = useMemo(() => {
+    return (transcriptions || [])
+      .map((t) => (t.audio_files as { id?: string })?.id)
+      .filter(Boolean) as string[];
+  }, [transcriptions]);
+
+  const visibleAudioIdsSig = useMemo(() => visibleAudioIds.slice().sort().join(","), [visibleAudioIds]);
+
   const { data: allAnalyses } = useQuery({
-    queryKey: ["all-analyses", accountId],
+    queryKey: ["all-analyses", accountId, visibleAudioIdsSig],
     queryFn: async () => {
-      if (!accountId) return [];
+      if (!accountId || visibleAudioIds.length === 0) return [];
       const { data } = await supabase
         .from("analyses")
         .select("audio_file_id, overall_sentiment, sentiment_score, tags")
+        .in("audio_file_id", visibleAudioIds)
         .eq("account_id", accountId);
       return data || [];
     },
-    enabled: !!accountId,
+    enabled: !!accountId && visibleAudioIds.length > 0,
   });
 
   const analysisMap = useMemo(() => {
@@ -308,7 +317,12 @@ export default function TranscripcionesPage() {
     }
     if (!transcriptions?.length || !accountId) return;
     try {
-      const { data: allAn } = await supabase.from("analyses").select("*").eq("account_id", accountId);
+      const audioIds = transcriptions.map((t) => (t.audio_files as { id?: string })?.id).filter(Boolean) as string[];
+      const { data: allAn } = await supabase
+        .from("analyses")
+        .select("*")
+        .eq("account_id", accountId)
+        .in("audio_file_id", audioIds);
       const anMap = new Map((allAn || []).map((a) => [a.audio_file_id, a]));
 
       const { data: rulesData } = await supabase
@@ -316,7 +330,6 @@ export default function TranscripcionesPage() {
         .select("*")
         .eq("account_id", accountId)
         .order("created_at", { ascending: true });
-      const audioIds = transcriptions.map((t) => (t.audio_files as { id?: string })?.id).filter(Boolean) as string[];
       const { data: extractionsData } = await supabase.from("call_extractions").select("*").in("audio_file_id", audioIds);
 
       const extractMap = new Map<string, Map<string, string>>();

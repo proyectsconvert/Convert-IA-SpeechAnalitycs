@@ -80,7 +80,6 @@ import {
 } from "@/lib/extractions/applyExtractionRules";
 import { resolveExtColumnKey, extValuesEqual } from "@/lib/extractions/extColumnResolve";
 import { useWhatsappConversations } from "@/hooks/useWhatsappConversations";
-import { useWhatsappAnalysisVisible } from "@/hooks/useWhatsappAnalysisVisible";
 import { useAccountLimits } from "@/hooks/useAccountLimits";
 import { normalizeWhatsappAnalysisForInsights } from "@/lib/analysis/normalizeWhatsappAnalysis";
 import { UsageWidget } from "@/components/UsageWidget";
@@ -220,9 +219,6 @@ export default function AnalyticsWhatsappPage() {
   const optExtFecha = filterOptions?.dates || [];
   const sentimentOptions = filterOptions?.sentiments || [];
 
-  const visibleIds = useMemo(() => conversations.map(c => c.id), [conversations]);
-  const { data: waAnalysisMap, isLoading: isLoadingAnalysis } = useWhatsappAnalysisVisible(accountId, visibleIds);
-
   // ... (Upload verification and other states remain the same)
   const [showSummary, setShowSummary] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -283,16 +279,39 @@ export default function AnalyticsWhatsappPage() {
       const rec: Record<string, string> = {};
       for (let i = 0; i < ids.length; i += 100) {
         const chunk = ids.slice(i, i + 100);
-        const { data: agentMsgs } = await supabase
-          .from("whatsapp_messages")
-          .select("conversation_id, agent_name")
-          .in("conversation_id", chunk)
-          .eq("sender_type", "Agente")
-          .not("agent_name", "is", null)
-          .order("timestamp", { ascending: true });
-        (agentMsgs || []).forEach((m: any) => {
-          if (m.agent_name && !rec[m.conversation_id]) rec[m.conversation_id] = m.agent_name;
-        });
+        // 1. Prioridad: Documentos paralelos pre-agregados
+        try {
+          const { data: docs } = await supabase
+            .from("whatsapp_conversation_documents" as any)
+            .select("conversation_id, transcript_json")
+            .in("conversation_id", chunk);
+
+          (docs || []).forEach((d: any) => {
+            if (d.conversation_id && Array.isArray(d.transcript_json)) {
+              const agentMsg = d.transcript_json.find((m: any) => m.sender_type === "Agente" && m.agent_name);
+              if (agentMsg?.agent_name && !rec[d.conversation_id]) {
+                rec[d.conversation_id] = agentMsg.agent_name;
+              }
+            }
+          });
+        } catch {
+          // Fallback silencioso
+        }
+
+        // 2. Buscar pendientes en tabla relacional original si faltan
+        const missing = chunk.filter((id) => !rec[id]);
+        if (missing.length > 0) {
+          const { data: agentMsgs } = await supabase
+            .from("whatsapp_messages")
+            .select("conversation_id, agent_name")
+            .in("conversation_id", missing)
+            .eq("sender_type", "Agente")
+            .not("agent_name", "is", null)
+            .order("timestamp", { ascending: true });
+          (agentMsgs || []).forEach((m: any) => {
+            if (m.agent_name && !rec[m.conversation_id]) rec[m.conversation_id] = m.agent_name;
+          });
+        }
       }
       return rec;
     },
@@ -478,11 +497,31 @@ export default function AnalyticsWhatsappPage() {
 
   const handleSelectConversation = async (conv: any) => {
     try {
-      const { data: messages } = await supabase
-        .from("whatsapp_messages")
-        .select("*")
-        .eq("conversation_id", conv.id)
-        .order("timestamp", { ascending: true });
+      // 1. Prioridad: Documento pre-agregado JSONB en paralelo
+      let messages: any[] | null = null;
+      try {
+        const { data: doc } = await supabase
+          .from("whatsapp_conversation_documents" as any)
+          .select("transcript_json")
+          .eq("conversation_id", conv.id)
+          .maybeSingle();
+
+        if (doc && Array.isArray((doc as any).transcript_json) && (doc as any).transcript_json.length > 0) {
+          messages = (doc as any).transcript_json;
+        }
+      } catch {
+        // Fallback silencioso
+      }
+
+      // 2. Fallback de seguridad cero regresión: tabla relacional original
+      if (!messages) {
+        const { data: rawMessages } = await supabase
+          .from("whatsapp_messages")
+          .select("*")
+          .eq("conversation_id", conv.id)
+          .order("timestamp", { ascending: true });
+        messages = rawMessages || [];
+      }
 
       const { data: analysis } = await (supabase
         .from("whatsapp_analysis_results")
@@ -573,13 +612,24 @@ export default function AnalyticsWhatsappPage() {
         return;
       }
 
-      const { data: dbCounts } = (await supabase
-        .from("whatsapp_conversations")
-        .select("external_id, whatsapp_messages(count)" as any)
-        .eq("account_id", currentAccount.account_id)) as any;
+      const externalIds = Array.from(new Set(parsedData.map((p) => p.external_id).filter(Boolean)));
+      const dbMap = new Map<string, number>();
 
-      const dbMap = new Map();
-      dbCounts?.forEach((item: any) => dbMap.set(item.external_id, item.whatsapp_messages?.[0]?.count || 0));
+      if (externalIds.length > 0) {
+        const CHUNK_SIZE = 200;
+        for (let i = 0; i < externalIds.length; i += CHUNK_SIZE) {
+          const chunk = externalIds.slice(i, i + CHUNK_SIZE);
+          const { data } = await supabase
+            .from("whatsapp_conversations")
+            .select("external_id, total_messages")
+            .eq("account_id", currentAccount.account_id)
+            .in("external_id", chunk);
+
+          data?.forEach((item: any) => {
+            dbMap.set(item.external_id, item.total_messages ?? 0);
+          });
+        }
+      }
 
       const summary = {
         new: [] as any[],

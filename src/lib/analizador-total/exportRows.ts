@@ -248,21 +248,41 @@ async function enrichWaConversations(rows: AnalizadorUnifiedRow[]): Promise<void
   for (let i = 0; i < waRows.length; i += batchSize) {
     const batch = waRows.slice(i, i + batchSize);
     const ids = batch.map((r) => r.waConversationId!);
-    const { data } = await supabase
-      .from("whatsapp_messages")
-      .select("conversation_id, timestamp, sender_type, agent_name, content, message_type")
-      .in("conversation_id", ids)
-      .order("timestamp", { ascending: true });
+    const byConv = new Map<string, any[]>();
 
-    if (!data?.length) continue;
+    // 1. Prioridad: Documentos paralelos pre-agregados
+    try {
+      const { data: docs } = await supabase
+        .from("whatsapp_conversation_documents" as any)
+        .select("conversation_id, transcript_json")
+        .in("conversation_id", ids);
 
-    // Group messages by conversation_id
-    const byConv = new Map<string, typeof data>();
-    for (const msg of data) {
-      const cid = msg.conversation_id;
-      if (!byConv.has(cid)) byConv.set(cid, []);
-      byConv.get(cid)!.push(msg);
+      (docs || []).forEach((d: any) => {
+        if (d.conversation_id && Array.isArray(d.transcript_json) && d.transcript_json.length > 0) {
+          byConv.set(d.conversation_id, d.transcript_json);
+        }
+      });
+    } catch {
+      // Fallback silencioso
     }
+
+    // 2. Fallback de seguridad: buscar las conversaciones no encontradas en tabla original
+    const missingIds = ids.filter((id) => !byConv.has(id));
+    if (missingIds.length > 0) {
+      const { data } = await supabase
+        .from("whatsapp_messages")
+        .select("conversation_id, timestamp, sender_type, agent_name, content, message_type")
+        .in("conversation_id", missingIds)
+        .order("timestamp", { ascending: true });
+
+      for (const msg of data || []) {
+        const cid = msg.conversation_id;
+        if (!byConv.has(cid)) byConv.set(cid, []);
+        byConv.get(cid)!.push(msg);
+      }
+    }
+
+    if (!byConv.size) continue;
 
     for (const row of batch) {
       const msgs = byConv.get(row.waConversationId!);

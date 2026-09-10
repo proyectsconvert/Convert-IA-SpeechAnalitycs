@@ -70,10 +70,38 @@ function ProtectedAppRoute({ children }: { children: React.ReactNode }) {
   );
 }
 
+const HEAVY_QUERY_KEYS = new Set([
+  "analizador-total-data",
+  "audio-files",
+  "whatsapp-conversations",
+  "transcriptions-list",
+  "wa-list-analysis-results",
+  "wa-counts",
+  "all-analyses",
+  "quality-evaluations",
+  "quality-evaluation-detail",
+  "biblioteca-visible-data",
+  "wa-visible-analysis",
+  "analiticas-analyses",
+  "analiticas-transcriptions-text",
+  "analiticas-wa-conversations",
+  "dashboard-audio-status-counts",
+]);
+
 const App = () => (
   <PersistQueryClientProvider
     client={queryClient}
-    persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+    persistOptions={{
+      persister,
+      maxAge: 1000 * 60 * 60 * 24,
+      dehydrateOptions: {
+        shouldDehydrateQuery: (query) => {
+          if (query.state.status !== "success") return false;
+          const rootKey = String(query.queryKey[0] || "");
+          return !HEAVY_QUERY_KEYS.has(rootKey);
+        },
+      },
+    }}
   >
     <TooltipProvider>
       <Toaster />

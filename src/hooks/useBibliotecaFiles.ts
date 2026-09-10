@@ -33,8 +33,8 @@ export function useBibliotecaFiles(
       if (!accountId) return { data: [], count: 0 };
 
       const joinSpec = requiresAnalysisInner
-        ? "*, analyses!inner(overall_sentiment, sentiment_score, results, created_at)"
-        : "*, analyses!left(overall_sentiment, sentiment_score, results, created_at)";
+        ? "*, analyses!inner(overall_sentiment, sentiment_score, created_at)"
+        : "*, analyses!left(overall_sentiment, sentiment_score, created_at)";
 
       let supabaseQuery = supabase
         .from("audio_files")

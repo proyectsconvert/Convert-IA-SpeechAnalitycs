@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -90,25 +91,27 @@ export function useWhatsappConversations(
   });
 
   // Pre-fetching
-  if (query.data && page * pageSize < query.data.count) {
-    const nextKey = ["whatsapp-conversations", accountId, page + 1, pageSize, filters];
-    queryClient.prefetchQuery({
-      queryKey: nextKey,
-      queryFn: async () => {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
-        
-        let supabaseQuery = buildQuery(supabase, accountId!, filters);
+  useEffect(() => {
+    if (accountId && query.data && page * pageSize < query.data.count) {
+      const nextKey = ["whatsapp-conversations", accountId, page + 1, pageSize, filters];
+      queryClient.prefetchQuery({
+        queryKey: nextKey,
+        queryFn: async () => {
+          const from = page * pageSize;
+          const to = from + pageSize - 1;
+          
+          let supabaseQuery = buildQuery(supabase, accountId, filters);
 
-        const { data, error } = await supabaseQuery
-          .order("start_date", { ascending: false })
-          .range(from, to);
+          const { data, error } = await supabaseQuery
+            .order("start_date", { ascending: false })
+            .range(from, to);
 
-        if (error) throw error;
-        return { data: data || [], count: query.data?.count || 0 };
-      },
-    });
-  }
+          if (error) throw error;
+          return { data: data || [], count: query.data?.count || 0 };
+        },
+      });
+    }
+  }, [query.data, page, pageSize, accountId, filters, queryClient]);
 
   return query;
 }

@@ -108,7 +108,13 @@ export async function fetchAnalizadorTotalRawData(
       { initialPageSize: 1000, concurrency: 4, sinceIso },
     ),
 
-    fetchAllPaginated("analyses", accountId, "*", undefined, { sinceIso }),
+    fetchAllPaginated(
+      "analyses",
+      accountId,
+      "id, audio_file_id, created_at, overall_sentiment, sentiment_score, summary, results, tags",
+      undefined,
+      { sinceIso }
+    ),
 
     fetchAllPaginated(
       "transcriptions",

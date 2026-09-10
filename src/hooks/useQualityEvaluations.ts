@@ -35,6 +35,22 @@ export function useEvaluationDetail(evaluationId: string | null) {
     enabled: !!evaluationId,
     queryFn: async () => {
       if (!evaluationId) return null;
+      // 1. Prioridad: Documento pre-agregado JSONB en paralelo (O(1) lectura única)
+      try {
+        const { data: docData, error: docErr } = await supabase
+          .from("quality_evaluation_documents" as any)
+          .select("evaluation_json")
+          .eq("evaluation_id", evaluationId)
+          .maybeSingle();
+
+        if (!docErr && docData && Array.isArray((docData as any).evaluation_json) && (docData as any).evaluation_json.length > 0) {
+          return (docData as any).evaluation_json as QualityEvaluationItem[];
+        }
+      } catch {
+        // Fallback silencioso en caso de error
+      }
+
+      // 2. Fallback de seguridad cero regresión: tabla relacional original
       const { data, error } = await supabase
         .from("quality_evaluation_items")
         .select("*")
