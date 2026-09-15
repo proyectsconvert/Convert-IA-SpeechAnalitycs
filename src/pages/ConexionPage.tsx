@@ -126,7 +126,7 @@ export default function ConexionPage() {
   const [form, setForm] = useState(initialConnection);
   const [filters, setFilters] = useState(initialFilters);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>("");
-  const [selectedPromptId, setSelectedPromptId] = useState<string>("");
+  const [selectedPromptId, setSelectedPromptId] = useState<string>("default");
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -170,11 +170,15 @@ export default function ConexionPage() {
     enabled: !!accountId,
   });
 
-  const { data: prompts = [] } = useQuery({
-    queryKey: ["active-prompts-for-remote-import", accountId],
+  const { data: prompts = [], refetch: refetchPrompts } = useQuery({
+    queryKey: ["prompts-for-remote-import", accountId],
     queryFn: async () => {
       if (!accountId) return [] as PromptRow[];
-      const { data, error } = await supabase.from("prompts").select("id,name,status,version").eq("account_id", accountId).eq("status", "active").order("name");
+      const { data, error } = await supabase
+        .from("prompts")
+        .select("id,name,status,version")
+        .eq("account_id", accountId)
+        .order("name");
       if (error) throw error;
       return (data ?? []) as PromptRow[];
     },
@@ -197,9 +201,9 @@ export default function ConexionPage() {
   const [editingAutomationId, setEditingAutomationId] = useState<string | null>(null);
   const [automationForm, setAutomationForm] = useState({
     name: "",
-    prompt_id: "",
+    prompt_id: "default",
     quality_matrix_id: "default",
-    is_enabled: true,
+    is_enabled: false,
     schedule_interval_minutes: "60",
     importDestination: "grabaciones" as "grabaciones" | "whatsapp",
     minMessagesForAnalysis: "3",
@@ -221,7 +225,7 @@ export default function ConexionPage() {
         }
         setAutomationForm({
           name: aut.name,
-          prompt_id: aut.default_prompt_id || "",
+          prompt_id: aut.default_prompt_id || "default",
           quality_matrix_id: aut.default_quality_matrix_id || "default",
           is_enabled: aut.is_enabled,
           schedule_interval_minutes: String(aut.schedule_interval_minutes),
@@ -237,8 +241,18 @@ export default function ConexionPage() {
     } else {
       // Solo resetear si el nombre no está ya vacío (para evitar loops)
       setAutomationForm(prev => {
-        if (prev.name === "" && prev.prompt_id === "") return prev;
-        return { ...prev, ...initialFilters, name: "", prompt_id: "", quality_matrix_id: "default", is_enabled: true, importDestination: "grabaciones" as const, minMessagesForAnalysis: "3", minClientMessagesForAnalysis: "1" };
+        if (prev.name === "" && prev.prompt_id === "default" && prev.is_enabled === false) return prev;
+        return {
+          ...prev,
+          ...initialFilters,
+          name: "",
+          prompt_id: "default",
+          quality_matrix_id: "default",
+          is_enabled: false,
+          importDestination: "grabaciones" as const,
+          minMessagesForAnalysis: "3",
+          minClientMessagesForAnalysis: "1"
+        };
       });
     }
   }, [editingAutomationId, automations]);
@@ -335,11 +349,21 @@ export default function ConexionPage() {
     }
   };
 
-  const saveAutomation = async () => {
-    if (!accountId || !activeConnectionId || !automationForm.name.trim() || !automationForm.prompt_id) {
-      toast.error("Nombre y prompt son obligatorios");
+  const saveAutomation = async (forceEnabledState?: boolean) => {
+    if (!accountId || !activeConnectionId) {
+      toast.error("Selecciona una conexión válida antes de guardar la regla");
       return;
     }
+    if (!automationForm.name.trim()) {
+      toast.error("El nombre de la regla es obligatorio");
+      return;
+    }
+
+    const isEnabled = forceEnabledState !== undefined ? forceEnabledState : automationForm.is_enabled;
+    const promptIdToSave = automationForm.prompt_id && automationForm.prompt_id !== "default"
+      ? automationForm.prompt_id
+      : null;
+
     setIsSaving(true);
     try {
       const { data, error } = await supabase.functions.invoke("remote-import", {
@@ -349,14 +373,16 @@ export default function ConexionPage() {
           automation: {
             id: editingAutomationId,
             connection_id: activeConnectionId,
-            name: automationForm.name,
-            prompt_id: automationForm.prompt_id,
+            name: automationForm.name.trim(),
+            prompt_id: promptIdToSave,
             quality_matrix_id: automationForm.quality_matrix_id && automationForm.quality_matrix_id !== "default" ? automationForm.quality_matrix_id : null,
-            schedule_interval_minutes: Number(automationForm.schedule_interval_minutes),
-            is_enabled: automationForm.is_enabled,
+            schedule_interval_minutes: Math.max(1, Number(automationForm.schedule_interval_minutes) || 60),
+            is_enabled: isEnabled,
             target_module: automationForm.importDestination,
             filters: {
               ...automationForm,
+              is_enabled: isEnabled,
+              prompt_id: promptIdToSave,
               importDestination: automationForm.importDestination,
               minMessagesForAnalysis: automationForm.minMessagesForAnalysis,
               minClientMessagesForAnalysis: automationForm.minClientMessagesForAnalysis,
@@ -366,7 +392,13 @@ export default function ConexionPage() {
       });
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) throw new Error((data as { error?: string })?.error || "No se pudo guardar la automatización");
-      toast.success(editingAutomationId ? "Automatización actualizada" : "Automatización creada");
+
+      if (isEnabled) {
+        toast.success(editingAutomationId ? "Regla actualizada y activa" : "Regla creada y activada correctamente");
+      } else {
+        toast.success(editingAutomationId ? "Cambios guardados (Regla Inactiva / Borrador)" : "Avance guardado como Borrador (Inactiva)");
+      }
+
       setEditingAutomationId(null);
       refetchAutomations();
     } catch (error) {
@@ -435,10 +467,11 @@ export default function ConexionPage() {
   };
 
   const scanImport = async () => {
-    if (!accountId || !user || !activeConnectionId || !selectedPromptId) {
-      toast.error("Selecciona una conexión y un prompt antes de importar");
+    if (!accountId || !user || !activeConnectionId) {
+      toast.error("Selecciona una conexión antes de importar");
       return;
     }
+    const effectivePromptId = selectedPromptId && selectedPromptId !== "default" ? selectedPromptId : null;
     setIsScanning(true);
     try {
       const { data, error } = await supabase.functions.invoke("remote-import", {
@@ -446,7 +479,7 @@ export default function ConexionPage() {
           action: "scan",
           accountId,
           connectionId: activeConnectionId,
-          promptId: selectedPromptId,
+          promptId: effectivePromptId,
           filters: {
             ...filters,
             importDestination,
@@ -723,12 +756,39 @@ export default function ConexionPage() {
                 </Select>
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Prompt para análisis *">
-                  <Select value={automationForm.prompt_id} onValueChange={(v) => setAutomationForm(f => ({ ...f, prompt_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Seleccionar prompt" /></SelectTrigger>
+                <Field
+                  label={
+                    <div className="flex items-center justify-between w-full">
+                      <span>Prompt para análisis</span>
+                      <a
+                        href="/prompts"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] font-normal text-primary hover:underline flex items-center gap-1"
+                        title="Abrir gestión de prompts en nueva pestaña"
+                      >
+                        + Crear prompt
+                      </a>
+                    </div>
+                  }
+                >
+                  <Select
+                    value={automationForm.prompt_id || "default"}
+                    onValueChange={(v) => setAutomationForm(f => ({ ...f, prompt_id: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar prompt" />
+                    </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="default">
+                        <span className="flex items-center gap-1.5 font-medium text-primary">
+                          ✨ Predeterminado (Análisis Estándar IA)
+                        </span>
+                      </SelectItem>
                       {prompts.map((prompt) => (
-                        <SelectItem key={prompt.id} value={prompt.id}>{prompt.name} v{prompt.version}</SelectItem>
+                        <SelectItem key={prompt.id} value={prompt.id}>
+                          {prompt.name} v{prompt.version} {prompt.status === "active" ? "(Activo)" : "(Borrador)"}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -754,11 +814,38 @@ export default function ConexionPage() {
                 </Field>
               </div>
 
-              <Field label="Ejecutar cada X minutos"><Input type="number" min="1" value={automationForm.schedule_interval_minutes} onChange={(e) => setAutomationForm(f => ({ ...f, schedule_interval_minutes: e.target.value }))} /></Field>
+              <Field label="Ejecutar cada X minutos">
+                <Input
+                  type="number"
+                  min="1"
+                  value={automationForm.schedule_interval_minutes}
+                  onChange={(e) => setAutomationForm(f => ({ ...f, schedule_interval_minutes: e.target.value }))}
+                />
+              </Field>
 
-              <div className="flex items-center gap-3 rounded-lg border border-purple-100 bg-purple-50/30 p-3">
-                <Switch checked={automationForm.is_enabled} onCheckedChange={(checked) => setAutomationForm(f => ({ ...f, is_enabled: checked }))} />
-                <div><p className="text-sm font-medium">Estado</p><p className="text-xs text-muted-foreground">Activar/desactivar esta regla</p></div>
+              <div className={cn(
+                "flex items-center justify-between rounded-lg border p-3 transition-colors",
+                automationForm.is_enabled ? "border-green-200 bg-green-50/40" : "border-border bg-muted/20"
+              )}>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">
+                      {automationForm.is_enabled ? "Regla Activa (100%)" : "Regla Inactiva / Borrador"}
+                    </p>
+                    <Badge variant={automationForm.is_enabled ? "default" : "secondary"} className="text-[10px] h-4 px-1.5">
+                      {automationForm.is_enabled ? "Se ejecutará" : "Pausada"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {automationForm.is_enabled
+                      ? `Se ejecutará automáticamente cada ${automationForm.schedule_interval_minutes || 60} min.`
+                      : "Guarda tu avance sin activar la regla. Podrás activarla cuando esté lista."}
+                  </p>
+                </div>
+                <Switch
+                  checked={automationForm.is_enabled}
+                  onCheckedChange={(checked) => setAutomationForm(f => ({ ...f, is_enabled: checked }))}
+                />
               </div>
 
               {automationForm.importDestination === "whatsapp" && (
@@ -798,12 +885,49 @@ export default function ConexionPage() {
                 </Field>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button className="w-full" onClick={saveAutomation} disabled={isSaving || !automationForm.name || !automationForm.prompt_id}>
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
-                  {editingAutomationId ? "Actualizar Regla" : "Crear Regla"}
-                </Button>
-                {editingAutomationId && <Button variant="ghost" onClick={() => setEditingAutomationId(null)}>Cancelar</Button>}
+              <div className="flex flex-col gap-2 pt-2">
+                <div className="flex gap-2">
+                  <Button
+                    className="w-full flex-1"
+                    onClick={() => saveAutomation()}
+                    disabled={isSaving || !automationForm.name.trim()}
+                    variant={automationForm.is_enabled ? "default" : "secondary"}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : automationForm.is_enabled ? (
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    {editingAutomationId
+                      ? (automationForm.is_enabled ? "Actualizar y Mantener Activa" : "Guardar Cambios (Inactiva)")
+                      : (automationForm.is_enabled ? "Crear y Activar Regla" : "Guardar Avance / Borrador")}
+                  </Button>
+
+                  {!automationForm.is_enabled && (
+                    <Button
+                      variant="default"
+                      onClick={() => saveAutomation(true)}
+                      disabled={isSaving || !automationForm.name.trim()}
+                      title="Guarda esta regla y la activa de inmediato"
+                    >
+                      <Play className="h-4 w-4 mr-1.5" />
+                      Activar
+                    </Button>
+                  )}
+
+                  {editingAutomationId && (
+                    <Button variant="ghost" onClick={() => setEditingAutomationId(null)}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+                {!automationForm.is_enabled && (
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    💡 Tu avance se guardará de forma segura sin ejecutar tareas en segundo plano.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -816,10 +940,13 @@ export default function ConexionPage() {
                   <div key={aut.id} className="rounded-xl border border-border bg-card p-4 flex flex-col md:flex-row justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={cn("h-2 w-2 rounded-full", aut.is_enabled ? "bg-green-500" : "bg-muted-foreground")} />
+                        <span className={cn("h-2.5 w-2.5 rounded-full", aut.is_enabled ? "bg-green-500" : "bg-muted-foreground/50")} />
                         <h3 className="font-bold text-sm">{aut.name}</h3>
+                        <Badge variant={aut.is_enabled ? "default" : "secondary"} className="text-[10px] uppercase">
+                          {aut.is_enabled ? "Activa" : "Borrador / Inactiva"}
+                        </Badge>
                         <Badge variant="outline" className="text-[10px] uppercase">
-                          Prompt: {prompts.find(p => p.id === aut.default_prompt_id)?.name || 'Sin prompt'}
+                          Prompt: {prompts.find(p => p.id === aut.default_prompt_id)?.name || 'Predeterminado (IA)'}
                         </Badge>
                         <Badge variant="outline" className="text-[10px] uppercase gap-1 text-primary border-primary/20 bg-primary/5">
                           <Layers className="h-2.5 w-2.5" />
@@ -903,11 +1030,18 @@ export default function ConexionPage() {
                   </Select>
                 </Field>
                 <Field label="Prompt para análisis">
-                  <Select value={selectedPromptId} onValueChange={setSelectedPromptId}>
+                  <Select value={selectedPromptId || "default"} onValueChange={setSelectedPromptId}>
                     <SelectTrigger><SelectValue placeholder="Seleccionar prompt" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="default">
+                        <span className="flex items-center gap-1.5 font-medium text-primary">
+                          ✨ Predeterminado (Análisis Estándar IA)
+                        </span>
+                      </SelectItem>
                       {prompts.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} v{p.version}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} v{p.version} {p.status === "active" ? "(Activo)" : "(Borrador)"}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

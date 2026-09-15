@@ -1113,6 +1113,22 @@ async function runImportJob(
     return { imported: 0, failed: 0, queued: 0, partial: false };
   }
 
+  let defaultQualityMatrixId: string | null = (job as any)?.quality_matrix_id || null;
+  if (!defaultQualityMatrixId && job.automation_id) {
+    try {
+      const { data: autRow } = await supabase
+        .from("remote_import_automations")
+        .select("default_quality_matrix_id")
+        .eq("id", job.automation_id)
+        .maybeSingle();
+      if (autRow?.default_quality_matrix_id) {
+        defaultQualityMatrixId = autRow.default_quality_matrix_id;
+      }
+    } catch (e) {
+      console.warn("runImportJob: no se pudo obtener default_quality_matrix_id de automatizacion:", e);
+    }
+  }
+
   let connection;
   let credentials;
   try {
@@ -1688,7 +1704,7 @@ async function runImportJob(
                 audio_file_id: audio.id,
                 account_id: connection.account_id,
                 prompt_id: job.prompt_id,
-                quality_matrix_id: (job as any)?.quality_matrix_id || (automation as any)?.default_quality_matrix_id || null,
+                quality_matrix_id: defaultQualityMatrixId,
               }),
             })
               .then(async (res) => {
@@ -1812,7 +1828,18 @@ async function runScheduled(supabase: any) {
     let connection: ConnectionRow | null = null;
     try {
       connection = await getConnection(supabase, automation.connection_id);
-      if (!automation.default_prompt_id) throw new Error("La automatización no tiene prompt seleccionado");
+      let effectivePromptId = automation.default_prompt_id;
+      if (!effectivePromptId) {
+        const { data: defPrompt } = await supabase
+          .from("prompts")
+          .select("id")
+          .eq("account_id", automation.account_id)
+          .eq("status", "active")
+          .order("is_default", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        effectivePromptId = defPrompt?.id ?? null;
+      }
 
       const { data: existingJob, error: existingError } = await supabase
         .from("remote_import_jobs")
@@ -1848,7 +1875,7 @@ async function runScheduled(supabase: any) {
         connection as ConnectionRow,
         credentials,
         mergedFilters,
-        automation.default_prompt_id,
+        effectivePromptId,
         null,
         true,
         { runKey, triggerSource: "scheduled", scheduledFor, lockId }
@@ -1922,7 +1949,18 @@ async function runAutomation(supabase: any, automationId: string) {
 
   const connection = await getConnection(supabase, automation.connection_id);
   try {
-    if (!automation.default_prompt_id) throw new Error("La automatización no tiene un prompt asignado");
+    let effectivePromptId = automation.default_prompt_id;
+    if (!effectivePromptId) {
+      const { data: defPrompt } = await supabase
+        .from("prompts")
+        .select("id")
+        .eq("account_id", automation.account_id)
+        .eq("status", "active")
+        .order("is_default", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      effectivePromptId = defPrompt?.id ?? null;
+    }
 
     const credentials = await decryptCredentials(connection.credentials_encrypted);
     // Fusionar filtros: la configuración manual de la conexión es la base "que funciona";
@@ -1936,7 +1974,7 @@ async function runAutomation(supabase: any, automationId: string) {
       connection as ConnectionRow,
       credentials,
       mergedFilters,
-      automation.default_prompt_id,
+      effectivePromptId,
       null,
       true,
     );
@@ -2146,7 +2184,7 @@ serve(async (req) => {
         connection_id: automation.connection_id,
         name: automation.name,
         import_filters: normalizedFilters,
-        default_prompt_id: automation.prompt_id || null,
+        default_prompt_id: (automation.prompt_id && automation.prompt_id !== "default") ? automation.prompt_id : null,
         default_quality_matrix_id: automation.quality_matrix_id || automation.default_quality_matrix_id || null,
         schedule_interval_minutes: Math.max(1, Number(automation.schedule_interval_minutes || 60)),
         is_enabled: automation.is_enabled !== false,
