@@ -12,6 +12,16 @@ interface WhatsappUploadContextType {
 
 const WhatsappUploadContext = createContext<WhatsappUploadContextType | undefined>(undefined);
 
+function toSafeIsoString(val: any): string | undefined {
+  if (!val) return undefined;
+  try {
+    const d = val instanceof Date ? val : new Date(val);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  } catch {
+    return undefined;
+  }
+}
+
 /* ──────────────────────────────────────────────────────────────
    Batch-insert helpers
    ────────────────────────────────────────────────────────────── */
@@ -159,8 +169,8 @@ export const WhatsappUploadProvider = ({ children }: { children: ReactNode }) =>
             account_id: accountId,
             external_id: conv.external_id,
             campaign: conv.campaign,
-            start_date: conv.start_date?.toISOString(),
-            end_date: conv.end_date?.toISOString(),
+            start_date: toSafeIsoString(conv.start_date),
+            end_date: toSafeIsoString(conv.end_date),
             account_name: conv.account_name,
             initiate_type: conv.initiate_type,
             contact_name: conv.contact_name,
@@ -201,8 +211,8 @@ export const WhatsappUploadProvider = ({ children }: { children: ReactNode }) =>
           id: existingId,
           data: {
             campaign: conv.campaign,
-            start_date: conv.start_date?.toISOString(),
-            end_date: conv.end_date?.toISOString(),
+            start_date: toSafeIsoString(conv.start_date),
+            end_date: toSafeIsoString(conv.end_date),
             account_name: conv.account_name,
             contact_name: conv.contact_name,
             phone_number: conv.phone_number,

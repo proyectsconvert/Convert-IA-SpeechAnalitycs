@@ -85,14 +85,36 @@ export const parseWhatsappCsv = (csvText: string): WhatsappConversation[] => {
     return result;
   };
 
-  const parseDate = (dateStr: string) => {
-    if (!dateStr || dateStr === 'N/A') return undefined;
-    // Format in sample: 2026-03-26 20:26:01
-    try {
-        return new Date(dateStr.replace(/-/g, '/'));
-    } catch (e) {
-        return undefined;
+  const parseDate = (dateStr: string): Date | undefined => {
+    if (!dateStr || typeof dateStr !== "string") return undefined;
+    const str = dateStr.trim();
+    if (!str || str === "N/A" || str.toLowerCase() === "null") return undefined;
+
+    // Check DD/MM/YYYY or DD-MM-YYYY (with optional HH:mm:ss) first to avoid MM/DD confusion
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+    if (dmyMatch) {
+      const [, day, month, year, h = "0", m = "0", s = "0"] = dmyMatch;
+      const d = new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+      if (!isNaN(d.getTime())) return d;
     }
+
+    // Check YYYY-MM-DD or YYYY/MM/DD
+    const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/);
+    if (ymdMatch) {
+      const [, year, month, day, h = "0", m = "0", s = "0"] = ymdMatch;
+      const d = new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s));
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Try standard Date parse
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+
+    // Try replacing - with /
+    d = new Date(str.replace(/-/g, "/"));
+    if (!isNaN(d.getTime())) return d;
+
+    return undefined;
   };
 
   for (let i = 0; i < lines.length; i++) {

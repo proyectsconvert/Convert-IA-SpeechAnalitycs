@@ -132,6 +132,16 @@ function waScorePercent(conv: { status?: string; score_general?: unknown }): num
   return raw <= 1.5 ? raw * 100 : raw;
 }
 
+function safeFormatDate(raw: any, fmt: string, options?: Parameters<typeof format>[2]): string {
+  if (!raw) return "—";
+  try {
+    const d = raw instanceof Date ? raw : new Date(raw);
+    return isNaN(d.getTime()) ? "—" : format(d, fmt, options);
+  } catch {
+    return "—";
+  }
+}
+
 export default function AnalyticsWhatsappPage() {
   const [searchParams] = useSearchParams();
   const conversationIdFromUrl = searchParams.get("conversation");
@@ -205,7 +215,8 @@ export default function AnalyticsWhatsappPage() {
       const dates = Array.from(new Set(data?.map(c => {
         if (!c.start_date) return null;
         try {
-          return new Date(c.start_date).toISOString().split('T')[0];
+          const d = new Date(c.start_date);
+          return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
         } catch { return null; }
       }).filter(Boolean))).sort().reverse();
       
@@ -1199,9 +1210,7 @@ export default function AnalyticsWhatsappPage() {
                       )}
                       {!hiddenWaCols.has("fecha_carga") && (
                         <TableCell className="text-[10px]">
-                          {conv.created_at || conv.start_date
-                            ? format(new Date(conv.created_at || conv.start_date), "dd MMM yyyy, HH:mm", { locale: es })
-                            : "—"}
+                          {safeFormatDate(conv.created_at || conv.start_date, "dd MMM yyyy, HH:mm", { locale: es })}
                         </TableCell>
                       )}
                       {!hiddenWaCols.has("mensajes") && (
@@ -1382,9 +1391,7 @@ export default function AnalyticsWhatsappPage() {
                         </div>
                         <p className="text-[10px] text-muted-foreground">
                           Analizado:{" "}
-                          {analysisResult.analyzed_at
-                            ? format(new Date(analysisResult.analyzed_at), "dd/MM/yyyy HH:mm")
-                            : "—"}
+                          {safeFormatDate(analysisResult.analyzed_at, "dd/MM/yyyy HH:mm")}
                           {analysisResult.id ? (
                             <>
                               {" "}
@@ -1426,17 +1433,13 @@ export default function AnalyticsWhatsappPage() {
                           <div>
                             <span className="text-[9px] text-muted-foreground uppercase">Inicio</span>
                             <p className="text-[10px] font-medium mt-0.5">
-                              {selectedConversation.start_date
-                                ? format(new Date(selectedConversation.start_date), "dd/MM/yy HH:mm")
-                                : "—"}
+                              {safeFormatDate(selectedConversation.start_date, "dd/MM/yy HH:mm")}
                             </p>
                           </div>
                           <div>
                             <span className="text-[9px] text-muted-foreground uppercase">Fin</span>
                             <p className="text-[10px] font-medium mt-0.5">
-                              {selectedConversation.end_date
-                                ? format(new Date(selectedConversation.end_date), "dd/MM/yy HH:mm")
-                                : "—"}
+                              {safeFormatDate(selectedConversation.end_date, "dd/MM/yy HH:mm")}
                             </p>
                           </div>
                         </div>
