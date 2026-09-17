@@ -337,13 +337,17 @@ export function WhatsappAnalysisModal({ open, onOpenChange, onSuccess }: Whatsap
 
       if (error) {
         console.error("Supabase edge function error:", error);
+        let detailMsg = error.message || String(error);
         if (error.context) {
           try {
             const errBody = await error.context.json();
             console.error("Edge function error body:", errBody);
+            if (errBody?.error) {
+              detailMsg = errBody.error;
+            }
           } catch (e) {}
         }
-        throw error;
+        throw new Error(detailMsg);
       }
       setBatchId(data.batch_id);
 
