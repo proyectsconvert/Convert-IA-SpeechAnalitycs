@@ -80,6 +80,7 @@ import {
 } from "@/lib/extractions/applyExtractionRules";
 import { resolveExtColumnKey, extValuesEqual } from "@/lib/extractions/extColumnResolve";
 import { useWhatsappConversations } from "@/hooks/useWhatsappConversations";
+import { useWhatsappAnalysisVisible } from "@/hooks/useWhatsappAnalysisVisible";
 import { useAccountLimits } from "@/hooks/useAccountLimits";
 import { normalizeWhatsappAnalysisForInsights } from "@/lib/analysis/normalizeWhatsappAnalysis";
 import { UsageWidget } from "@/components/UsageWidget";
@@ -218,6 +219,9 @@ export default function AnalyticsWhatsappPage() {
   const optExtCampaña = filterOptions?.campaigns || [];
   const optExtFecha = filterOptions?.dates || [];
   const sentimentOptions = filterOptions?.sentiments || [];
+
+  const visibleIds = useMemo(() => conversations.map((c) => c.id), [conversations]);
+  const { data: waAnalysisMap } = useWhatsappAnalysisVisible(accountId, visibleIds);
 
   // ... (Upload verification and other states remain the same)
   const [showSummary, setShowSummary] = useState(false);
