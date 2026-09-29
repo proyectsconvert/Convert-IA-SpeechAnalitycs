@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/contexts/AccountContext";
 import { format, subDays, eachDayOfInterval, isAfter } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useHomeDashboardLayout, DashboardWidgetConfig } from "@/hooks/useHomeDashboardLayout";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { AddWidgetModal } from "@/components/dashboard/AddWidgetModal";
@@ -26,8 +27,23 @@ export default function DashboardPage() {
   const { currentAccount } = useAccount();
   const accountId = currentAccount?.account_id;
 
-  const [dateRange, setDateRange] = useState<"7d" | "14d" | "30d" | "all">("7d");
+  const [dateRange, setDateRange] = useState<"7d" | "14d" | "30d" | "all">(() => {
+    const saved = localStorage.getItem("dashboard_date_range");
+    if (saved === "7d" || saved === "14d" || saved === "30d" || saved === "all") {
+      return saved;
+    }
+    return "30d";
+  });
   const [addModalOpen, setAddModalOpen] = useState(false);
+
+  const handleDateRangeChange = (range: "7d" | "14d" | "30d" | "all") => {
+    setDateRange(range);
+    try {
+      localStorage.setItem("dashboard_date_range", range);
+    } catch {
+      // ignore
+    }
+  };
 
   // Hook del diseño personalizable y persistente
   const {
@@ -46,11 +62,14 @@ export default function DashboardPage() {
   } = useHomeDashboardLayout(accountId);
 
   // 1. Carga de datos unificados maestros (Misma fuente que Analítica Unificada)
-  const since = getRecentWindowStart();
+  const since = useMemo(() => getRecentWindowStart(), []);
+  const windowKey: "recent" | "full" = dateRange === "all" ? "full" : "recent";
   const { data: unifiedRows, isLoading: loadingRows } = useQuery({
-    queryKey: ["analizador-total-data", accountId, "recent"],
+    queryKey: ["analizador-total-data", accountId, windowKey],
     queryFn: () =>
-      accountId ? fetchAnalizadorTotalRawData(accountId, { since }) : Promise.resolve([]),
+      accountId
+        ? fetchAnalizadorTotalRawData(accountId, windowKey === "recent" ? { since } : undefined)
+        : Promise.resolve([]),
     enabled: !!accountId,
     staleTime: 1000 * 60 * 5,
   });
@@ -288,8 +307,21 @@ export default function DashboardPage() {
 
   // 5. Evolución Temporal (Área multi-canal)
   const trendData = useMemo(() => {
-    const daysCount = dateRange === "30d" ? 29 : dateRange === "14d" ? 13 : 6;
-    const days = eachDayOfInterval({ start: subDays(new Date(), daysCount), end: new Date() });
+    let startDay: Date;
+    if (dateRange === "all") {
+      if (scopedRows && scopedRows.length > 0) {
+        const oldestTime = Math.min(...scopedRows.map((r) => new Date(r.created_at).getTime()));
+        const daysDiff = Math.ceil((Date.now() - oldestTime) / (1000 * 60 * 60 * 24));
+        startDay = subDays(new Date(), Math.min(Math.max(daysDiff, 6), 60));
+      } else {
+        startDay = subDays(new Date(), 29);
+      }
+    } else {
+      const daysCount = dateRange === "30d" ? 29 : dateRange === "14d" ? 13 : 6;
+      startDay = subDays(new Date(), daysCount);
+    }
+
+    const days = eachDayOfInterval({ start: startDay, end: new Date() });
     const dayLabels = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
 
     return days.map((day) => {
@@ -404,7 +436,7 @@ export default function DashboardPage() {
       <DashboardHeader
         accountName={currentAccount?.account.name}
         dateRange={dateRange}
-        onChangeDateRange={setDateRange}
+        onChangeDateRange={handleDateRangeChange}
         isCustomizing={isCustomizing}
         onToggleCustomizing={() => setIsCustomizing(!isCustomizing)}
         onOpenAddModal={() => setAddModalOpen(true)}
@@ -413,6 +445,63 @@ export default function DashboardPage() {
         isDirty={isDirty}
         isSaving={isSaving}
       />
+
+      {/* Aviso Inteligente cuando el rango temporal no coincide con la fecha de las llamadas */}
+      {scopedRows.length === 0 && unifiedRows && unifiedRows.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-700 dark:text-amber-400 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 shrink-0 text-amber-500" />
+            <div className="text-xs sm:text-sm">
+              <span className="font-semibold">
+                No hay interacciones en el filtro seleccionado ({dateRange === "7d" ? "últimos 7 días" : dateRange === "14d" ? "últimos 14 días" : "período actual"}):
+              </span>{" "}
+              Se detectaron <strong>{unifiedRows.length} interacciones</strong> disponibles en períodos anteriores.
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {dateRange !== "30d" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDateRangeChange("30d")}
+                className="h-8 text-xs border-amber-500/40 hover:bg-amber-500/20 text-foreground font-semibold"
+              >
+                Ver últimos 30 días
+              </Button>
+            )}
+            {dateRange !== "all" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleDateRangeChange("all")}
+                className="h-8 text-xs border-amber-500/40 hover:bg-amber-500/20 text-foreground font-semibold"
+              >
+                Ver todo el histórico
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {scopedRows.length === 0 && (!unifiedRows || unifiedRows.length === 0) && (audioStats?.total || 0) > 0 && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-blue-700 dark:text-blue-400 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 shrink-0 text-blue-500" />
+            <div className="text-xs sm:text-sm">
+              <span className="font-semibold">Sin interacciones en la ventana reciente:</span>{" "}
+              Se encontraron <strong>{audioStats?.total} audios</strong> en el histórico completo de esta cuenta.
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleDateRangeChange("all")}
+            className="h-8 text-xs border-blue-500/40 hover:bg-blue-500/20 text-foreground font-semibold shrink-0"
+          >
+            Cargar todo el histórico
+          </Button>
+        </div>
+      )}
 
       {/* Cuadrícula Dinámica de Widgets Reordenables */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
