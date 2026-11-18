@@ -145,7 +145,8 @@ Devuelve SOLO este JSON:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

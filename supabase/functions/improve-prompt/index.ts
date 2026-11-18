@@ -42,12 +42,13 @@ Integra el contenido del prompt original sin perder su intención.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Prompt original (nombre: "${name}"):\n---\n${content}\n---\nReescríbelo integrando las secciones requeridas.` },
         ],
-        max_tokens: 1500,
+        max_completion_tokens: 1500,
         temperature: 0.3,
       }),
     });

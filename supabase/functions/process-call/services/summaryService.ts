@@ -92,7 +92,8 @@ IMPORTANTE: No agregues información que no aparezca explícitamente en la trans
     console.log('Generating summary with OpenAI...');
     
     const response = await createChatCompletion({
-      model: "gpt-5.4-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userMessage }
@@ -153,7 +154,8 @@ Resumen: ${summary}
 
   try {
     const response = await createChatCompletion({
-      model: "gpt-5.4-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userMessage }

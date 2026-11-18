@@ -125,7 +125,7 @@ export function PromptDialog({ open, onOpenChange, prompt, onSuccess }: PromptDi
         status: values.active ? "active" as const : "draft" as const,
         account_id: accountId,
         created_by: user?.id,
-        model: "gpt-5.4-nano",
+        model: "gpt-6-luna",
       };
 
       if (isEditing && prompt) {

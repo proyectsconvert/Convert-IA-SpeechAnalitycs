@@ -203,8 +203,12 @@ LÍMITES REALES: cada ítem en "positive" máximo 360; en "negative"/"opportunit
   `.trim();
 
   try {
+    const LEGACY_MODELS = new Set(["gpt-5.4-nano", "gpt-4o-mini", "gpt-4o", "gpt-5.4", "gpt-5-nano", "gpt-4.1-nano"]);
+    const selectedModel = !prompt.model || LEGACY_MODELS.has(prompt.model) ? "gpt-6-luna" : prompt.model;
+
     const response = await createChatCompletion({
-      model: prompt.model || "gpt-4o-mini",
+      model: selectedModel,
+      ...(selectedModel === "gpt-6-luna" ? { reasoning_effort: "none" } : {}),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: transcript },

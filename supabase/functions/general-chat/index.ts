@@ -253,7 +253,8 @@ REGLAS DE BÚSQUEDA:
       method: "POST",
       headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages,
         tools,
         tool_choice: "auto",
@@ -551,10 +552,11 @@ REGLAS DE BÚSQUEDA:
       method: "POST",
       headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages,
         temperature: 0.2,
-        max_tokens: 2500,
+        max_completion_tokens: 2500,
       }),
     });
 

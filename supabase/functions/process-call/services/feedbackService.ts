@@ -204,7 +204,8 @@ Proporciona el análisis en el formato JSON solicitado, siendo muy específico y
     console.log('Generating feedback with OpenAI...');
     
     const response = await createChatCompletion({
-      model: "gpt-5.4-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userMessage }

@@ -52,6 +52,8 @@ interface ChatCompletionParams {
   response_format?: Record<string, unknown>;
   temperature?: number;
   max_tokens?: number;
+  max_completion_tokens?: number;
+  reasoning_effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
   timeoutMs?: number;
   maxRetries?: number;
 }
@@ -62,6 +64,8 @@ export async function createChatCompletion({
   response_format,
   temperature,
   max_tokens,
+  max_completion_tokens,
+  reasoning_effort,
   timeoutMs = 120_000,
   maxRetries = 2,
 }: ChatCompletionParams) {
@@ -70,11 +74,20 @@ export async function createChatCompletion({
     content: sanitizeContent(m.content),
   }));
 
+  const usesCompletionTokens = model.startsWith("gpt-5") || model.startsWith("gpt-6");
+  const resolvedCompletionTokens = max_completion_tokens ?? max_tokens;
+  const resolvedReasoningEffort = reasoning_effort ?? (model === "gpt-6-luna" ? "none" : undefined);
+
   const payload = {
     model,
     messages: sanitizedMessages,
+    ...(resolvedReasoningEffort ? { reasoning_effort: resolvedReasoningEffort } : {}),
     ...(typeof temperature === "number" ? { temperature } : {}),
-    ...(typeof max_tokens === "number" ? { max_tokens } : {}),
+    ...(typeof resolvedCompletionTokens === "number"
+      ? usesCompletionTokens
+        ? { max_completion_tokens: resolvedCompletionTokens }
+        : { max_tokens: resolvedCompletionTokens }
+      : {}),
     ...(response_format ? { response_format } : {}),
   };
 

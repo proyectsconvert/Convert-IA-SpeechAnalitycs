@@ -235,7 +235,8 @@ async function diarizeWithGPT(text: string, openaiKey: string): Promise<string> 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages: [
           {
             role: "user",
@@ -259,7 +260,7 @@ ${text.substring(0, 15000)}`,
           },
         ],
         temperature: 0,
-        max_tokens: 16000,
+        max_completion_tokens: 16000,
       }),
     });
 
@@ -316,7 +317,8 @@ Incluye: tema principal, participantes, acciones tomadas, resultado.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages: [
           { role: "system", content: basePrompt },
           {
@@ -324,7 +326,7 @@ Incluye: tema principal, participantes, acciones tomadas, resultado.`;
             content: `Resume esta transcripción (solo datos reales):\n\n${transcription.substring(0, 6000)}`,
           },
         ],
-        max_tokens: 500,
+        max_completion_tokens: 500,
         temperature: 0.3,
       }),
     });
@@ -351,7 +353,8 @@ async function detectCallTopic(transcription: string, summary: string, openaiKey
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages: [
           {
             role: "system",
@@ -360,7 +363,7 @@ Consulta general, Soporte técnico, Información de productos, Reclamos, Activac
           },
           { role: "user", content: `Transcripción: ${transcription.substring(0, 2000)}\n\nResumen: ${summary}` },
         ],
-        max_tokens: 30,
+        max_completion_tokens: 30,
         temperature: 0.1,
       }),
     });
@@ -686,7 +689,8 @@ Analiza la transcripción y devuelve un JSON con:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         messages: [
           { role: "system", content: systemInstructions },
           {

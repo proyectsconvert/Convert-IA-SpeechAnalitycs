@@ -493,7 +493,8 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-6-luna",
+        reasoning_effort: "none",
         temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [

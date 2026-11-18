@@ -7,9 +7,9 @@ const PRIMARY_MODEL = "gpt-4o-mini-transcribe-2025-12-15";
 const FALLBACK_MODEL = "gpt-4o-mini-transcribe";
 
 // Modelo principal de diarización
-const DIARIZATION_MODEL_PRIMARY = "gpt-4o-mini";
+const DIARIZATION_MODEL_PRIMARY = "gpt-6-luna";
 // Fallbacks si el modelo principal no está disponible
-const DIARIZATION_MODEL_FALLBACKS = ["gpt-4.1-nano", "gpt-5-nano", "gpt-5.4-nano"];
+const DIARIZATION_MODEL_FALLBACKS: string[] = [];
 
 // Tamaño máximo de texto crudo por chunk para diarización (en caracteres)
 const DIARIZATION_CHUNK_SIZE = 12000;
@@ -320,9 +320,10 @@ ${chunk}`;
           const isGpt5 = dModel.startsWith("gpt-5");
           const chatResponse = await createChatCompletion({
             model: dModel,
+            ...(dModel === "gpt-6-luna" ? { reasoning_effort: "none" as const } : {}),
             messages: [{ role: "user", content: diarizationPrompt }],
             ...(isGpt5 ? {} : { temperature: 0.0 }),
-            max_tokens: 16000,
+            max_completion_tokens: 16000,
             timeoutMs: 120000,
           });
 
